@@ -28,7 +28,10 @@
         "type": "radon-ide",
         "request": "launch",
         "name": "Radon IDE panel",
-        "usePrebuild": false
+        "packageManager": "npm",
+        "usePrebuild": false,
+        "ios": {},
+        "android": {}
     }
 ]
 }
