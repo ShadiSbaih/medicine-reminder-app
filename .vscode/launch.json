@@ -1,0 +1,34 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+        "name": "Expo: Start Development Server",
+        "type": "expo",
+        "request": "launch"
+    },
+    {
+        "name": "Expo: Run Android",
+        "type": "expo",
+        "request": "launch",
+        "platform": "android"
+    },
+    {
+        "name": "Expo: Run iOS",
+        "type": "expo",
+        "request": "launch",
+        "platform": "ios"
+    },
+    {
+        "name": "Expo: Run Web",
+        "type": "expo",
+        "request": "launch",
+        "platform": "web"
+    },
+    {
+        "type": "radon-ide",
+        "request": "launch",
+        "name": "Radon IDE panel",
+        "usePrebuild": false
+    }
+]
+}
