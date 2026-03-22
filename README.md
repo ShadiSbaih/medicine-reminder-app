@@ -1,72 +1,80 @@
 # Medicine Reminder Application
 
-## Overview
+A cross-platform React Native application built with [Expo](https://expo.dev/) designed to help users track and remember their medication schedules.
 
-The Medicine Reminder Application is a cross-platform mobile application built using React Native and Expo. It is designed to help users efficiently manage their medication schedules, track adherence, and receive timely notifications to ensure consistent health management.
+## 🚀 Features
 
-## Key Features
+- **Medication Scheduling**: Easily add and manage medication routines.
+- **Push Notifications**: Timely local reminders for taking medications.
+- **Secure Authentication**: Integrated with [Privy](https://privy.io/) and Passkeys for secure, passwordless login.
+- **Cross-Platform**: Runs natively on Android, iOS, and Web.
+- **Local Storage**: Securely stores user data using `expo-secure-store` and `AsyncStorage`.
 
-- Cross-Platform Support: Seamlessly runs on iOS, Android, and Web platforms.
-- Authentication & Security: Integrates robust authentication flows utilizing Passkeys, Apple Authentication, and Privy for secure user management.
-- Local Storage & Encryption: Employs secure on-device storage for sensitive health data using Expo Secure Store and Crypto.
-- Automated Notifications: Utilizes Expo Notifications to deliver reliable, scheduled medication reminders.
-- Web3 Capabilities: Incorporates Web3 functionalities using Viem and Permissionless libraries for advanced integration options.
-- User Interface: Features a clean, responsive design utilizing Expo Router for navigation, and integrated UI components such as circular progress indicators and QR code generation.
+## 🛠 Tech Stack
 
-## Prerequisites
+- **Framework**: React Native & Expo (SDK 54)
+- **Navigation**: Expo Router & React Navigation
+- **Authentication**: Privy (`@privy-io/expo`) & Passkeys
+- **Blockchain/Web3**: `viem`, `permissionless`
+- **UI/Styling**: Custom components, `react-native-reanimated`, `react-native-svg`
 
-Before running the application, ensure the following are installed on your development machine:
+## 📦 Installation
 
-- Node.js (v18.0.0 or later recommended)
-- npm or Yarn package manager
-- Expo CLI
-- iOS Simulator (macOS only) or Android Studio Emulator for local testing
-
-## Installation
-
-1. Clone the repository:
+1. **Clone the repository** (if applicable) and navigate to the project directory:
    ```bash
-   git clone https://github.com/ShadiSbaih/medicine-reminder-app.git
+   cd medicine_reminder
    ```
 
-2. Navigate into the project directory:
-   ```bash
-   cd medicine-reminder-app
-   ```
-
-3. Install project dependencies:
+2. **Install dependencies**:
+   *Note: This project uses a `.npmrc` file with `legacy-peer-deps=true` to resolve specific Web3/Privy peer dependencies.*
    ```bash
    npm install
    ```
 
-## Running the Application
+## 🏃‍♂️ Running the App Locally
 
-To start the development server, execute the following command:
+Start the Expo development server:
 
 ```bash
-npm start
+npx expo start
 ```
 
-This will launch the Expo CLI. From the terminal prompt, you can choose to:
-- Press `i` to open the app in an iOS Simulator.
-- Press `a` to open the app in an Android Emulator.
-- Press `w` to open the app in a web browser.
-- Scan the provided QR code with the Expo Go app on a physical device.
+From there, you can:
+- Press `a` to open on an Android emulator.
+- Press `i` to open on an iOS simulator.
+- Press `w` to open in a web browser.
+- Scan the QR code with the Expo Go app on your physical device.
 
-## Project Structure
+## 🏗 Building for Production / APK
 
-- `app/`: Contains the primary application screens and file-based routing logic (Expo Router).
-- `assets/`: Houses static resources such as images and fonts.
-- `scripts/`: Includes utility scripts for project management.
+This project is configured to use Expo Application Services (EAS) to build a standalone Android APK.
 
-## Contributing
+1. **Install EAS CLI**:
+   ```bash
+   npm install -g eas-cli
+   ```
 
-1. Fork the repository.
-2. Create a new feature branch (`git checkout -b feature/YourFeatureName`).
-3. Commit your changes (`git commit -m "Add YourFeatureName"`).
-4. Push to the branch (`git push origin feature/YourFeatureName`).
-5. Open a Pull Request for review.
+2. **Login to Expo** (if you haven't already):
+   ```bash
+   eas login
+   ```
 
-## License
+3. **Build the Android APK** (Preview Profile):
+   ```bash
+   npx eas-cli build -p android --profile preview
+   ```
+   *Once the build completes, EAS will provide a direct link in the terminal to download your `.apk` file so you can install it on an Android device.*
 
-This project is licensed under the MIT License. See the LICENSE file for more information.
+## 📂 Project Structure
+
+- `/app` - Expo Router file-based routing (pages like `home.tsx`, `auth.tsx`, `medications/`, etc.)
+- `/components` - Reusable UI components (buttons, text, modals)
+- `/constants` - Theme colors, styling constants, and configurations
+- `/hooks` - Custom React hooks
+- `/utils` - Helper functions (e.g., `notifications.ts`, `storage.ts`)
+- `/assets` - Static assets like images and icons
+
+## 🐛 Troubleshooting
+
+- **npm ERESOLVE errors**: If you run into dependency issues during install, ensure you are running `npm install` so it respects the local `.npmrc` rules (`legacy-peer-deps=true`).
+- **expo doctor warnings**: The package `@react-navigation/native` is intentionally excluded from Expo's strict version validation in `package.json` to support the required navigation features.
