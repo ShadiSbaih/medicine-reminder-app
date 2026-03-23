@@ -1,3 +1,5 @@
+import { FeedbackSnackbar } from "@/components/ui/feedback-snackbar";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { doseService } from "@/services/dose-service";
 import { todayTimelineService } from "@/services/today-timeline-service";
 import { TimelineDose } from "@/shared/utils/dose-timeline";
@@ -150,6 +152,13 @@ export default function HomeScreen() {
   const [overdueCount, setOverdueCount] = useState(0);
   const [nextDueDose, setNextDueDose] = useState<ScheduledDose | undefined>();
   const [readNotificationIds, setReadNotificationIds] = useState<string[]>([]);
+  const [snackbarMessage, setSnackbarMessage] = useState("");
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
+
+  const showFeedback = useCallback((message: string) => {
+    setSnackbarMessage(message);
+    setSnackbarVisible(true);
+  }, []);
 
   const loadTimeline = useCallback(async () => {
     try {
@@ -232,6 +241,7 @@ export default function HomeScreen() {
         await doseService.recordAsNeededDose(medication.id);
       }
       await loadTimeline(); // Reload timeline after recording dose
+      showFeedback(`Marked ${medication.name} as taken`);
     } catch (error) {
       console.error("Error recording dose:", error);
       Alert.alert("Error", "Failed to record dose. Please try again.");
@@ -249,6 +259,7 @@ export default function HomeScreen() {
         await doseService.skipAsNeededDose(medication.id);
       }
       await loadTimeline();
+      showFeedback(`Skipped ${medication.name} for this slot`);
     } catch (error) {
       console.error("Error skipping dose:", error);
       Alert.alert("Error", "Failed to skip dose. Please try again.");
@@ -312,349 +323,381 @@ export default function HomeScreen() {
   })();
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <LinearGradient
-        colors={[
-          SkeuoTheme.colors.headerGradientStart,
-          SkeuoTheme.colors.headerGradientEnd,
-        ]}
-        style={[styles.header, { paddingTop: insets.top + 10 }]}
-      >
-        <View style={styles.headerContent}>
-          <View style={styles.headerTop}>
-            <View style={styles.flex1}>
-              <Text style={styles.greeting}>{greeting}</Text>
-              <Text style={styles.greetingSub}>
-                Here is your medication plan for today
-              </Text>
+    <View style={styles.root}>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <LinearGradient
+          colors={[
+            SkeuoTheme.colors.headerGradientStart,
+            SkeuoTheme.colors.headerGradientEnd,
+          ]}
+          style={[styles.header, { paddingTop: insets.top + 10 }]}
+        >
+          <View style={styles.headerContent}>
+            <View style={styles.headerTop}>
+              <View style={styles.flex1}>
+                <Text style={styles.greeting}>{greeting}</Text>
+                <Text style={styles.greetingSub}>
+                  Here is your medication plan for today
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.notificationButton}
+                onPress={() => setShowNotifications(true)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons
+                  name="notifications-outline"
+                  size={24}
+                  color="white"
+                />
+                {unreadNotificationCount > 0 && (
+                  <View style={styles.notificationBadge}>
+                    <Text style={styles.notificationCount}>
+                      {unreadNotificationCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={styles.notificationButton}
-              onPress={() => setShowNotifications(true)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="notifications-outline" size={24} color="white" />
-              {unreadNotificationCount > 0 && (
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.notificationCount}>
-                    {unreadNotificationCount}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
+            <CircularProgress
+              progress={progress}
+              totalDoses={totalScheduledDoses}
+              completedDoses={completedDoses}
+            />
           </View>
-          <CircularProgress
-            progress={progress}
-            totalDoses={totalScheduledDoses}
-            completedDoses={completedDoses}
-          />
-        </View>
-      </LinearGradient>
+        </LinearGradient>
 
-      <View style={styles.content}>
-        <View style={styles.focusSection}>
-          <View style={styles.focusCard}>
-            <View style={styles.focusHeaderRow}>
-              <Text style={styles.focusTitle}>Dose Focus</Text>
-              {overdueCount > 0 ? (
-                <View style={styles.overdueBadge}>
-                  <Text style={styles.overdueText}>{overdueCount} overdue</Text>
-                </View>
+        <View style={styles.content}>
+          <View style={styles.focusSection}>
+            <View style={styles.focusCard}>
+              <View style={styles.focusHeaderRow}>
+                <Text style={styles.focusTitle}>Dose Focus</Text>
+                {overdueCount > 0 ? (
+                  <View style={styles.overdueBadge}>
+                    <Text style={styles.overdueText}>
+                      {overdueCount} overdue
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.onTrackBadge}>
+                    <Text style={styles.onTrackText}>On track</Text>
+                  </View>
+                )}
+              </View>
+
+              {nextDueDose ? (
+                <>
+                  <Text style={styles.focusMedication}>
+                    {nextDueDose.medication.name}
+                  </Text>
+                  <Text style={styles.focusMeta}>
+                    {nextDueDose.medication.dosage} • {nextDueDose.timeLabel}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.focusActionButton}
+                    onPress={() =>
+                      handleTakeDose(
+                        nextDueDose.medication,
+                        nextDueDose.scheduledTime,
+                      )
+                    }
+                  >
+                    <Text style={styles.focusActionText}>Mark as Taken</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.focusSkipButton}
+                    onPress={() =>
+                      confirmSkipDose(
+                        nextDueDose.medication,
+                        nextDueDose.scheduledTime,
+                      )
+                    }
+                  >
+                    <Text style={styles.focusSkipText}>Skip for now</Text>
+                  </TouchableOpacity>
+                </>
               ) : (
-                <View style={styles.onTrackBadge}>
-                  <Text style={styles.onTrackText}>On track</Text>
-                </View>
+                <>
+                  <Text style={styles.focusMedication}>
+                    All scheduled doses are complete
+                  </Text>
+                  <Text style={styles.focusMeta}>
+                    Nice work. You are done for today.
+                  </Text>
+                </>
               )}
             </View>
+          </View>
 
-            {nextDueDose ? (
-              <>
-                <Text style={styles.focusMedication}>
-                  {nextDueDose.medication.name}
-                </Text>
-                <Text style={styles.focusMeta}>
-                  {nextDueDose.medication.dosage} • {nextDueDose.timeLabel}
-                </Text>
-                <TouchableOpacity
-                  style={styles.focusActionButton}
-                  onPress={() =>
-                    handleTakeDose(
-                      nextDueDose.medication,
-                      nextDueDose.scheduledTime,
-                    )
-                  }
-                >
-                  <Text style={styles.focusActionText}>Mark as Taken</Text>
+          <View style={styles.quickActionsContainer}>
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <View style={styles.quickActionsGrid}>
+              {QUICK_ACTIONS.map((action) => (
+                <Link href={action.route as any} key={action.label} asChild>
+                  <TouchableOpacity style={styles.actionButton}>
+                    <LinearGradient
+                      colors={action.gradient}
+                      style={styles.actionGradient}
+                    >
+                      <View style={styles.actionContent}>
+                        <View
+                          style={[
+                            styles.actionIcon,
+                            { backgroundColor: `${action.color}55` },
+                          ]}
+                        >
+                          <Ionicons
+                            name={action.icon}
+                            size={28}
+                            color="white"
+                          />
+                        </View>
+                        <Text style={styles.actionLabel}>{action.label}</Text>
+                      </View>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Link>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Today&apos;s Schedule</Text>
+              <Link href="/calendar" asChild>
+                <TouchableOpacity>
+                  <Text style={styles.seeAllButton}>See All</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.focusSkipButton}
-                  onPress={() =>
-                    confirmSkipDose(
-                      nextDueDose.medication,
-                      nextDueDose.scheduledTime,
-                    )
-                  }
-                >
-                  <Text style={styles.focusSkipText}>Skip for now</Text>
-                </TouchableOpacity>
-              </>
+              </Link>
+            </View>
+            {scheduledDoses.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons
+                  name="medical-outline"
+                  size={48}
+                  color={SkeuoTheme.colors.textTertiary}
+                />
+                <Text style={styles.emptyStateTitle}>
+                  Nothing scheduled yet
+                </Text>
+                <Text style={styles.emptyStateText}>
+                  Add your first medication to start daily reminders and
+                  tracking.
+                </Text>
+                <View style={styles.emptyActionsRow}>
+                  <Link href="/medications/add" asChild>
+                    <TouchableOpacity style={styles.addMedicationButton}>
+                      <Text style={styles.addMedicationButtonText}>
+                        Add Medication
+                      </Text>
+                    </TouchableOpacity>
+                  </Link>
+                  <Link href="/medications" asChild>
+                    <TouchableOpacity style={styles.secondaryEmptyButton}>
+                      <Text style={styles.secondaryEmptyButtonText}>
+                        Open List
+                      </Text>
+                    </TouchableOpacity>
+                  </Link>
+                </View>
+              </View>
             ) : (
-              <>
-                <Text style={styles.focusMedication}>
-                  All scheduled doses are complete
-                </Text>
-                <Text style={styles.focusMeta}>
-                  Nice work. You are done for today.
-                </Text>
-              </>
+              scheduledDoses.map((doseItem) => {
+                const { medication, scheduledTime, timeLabel } = doseItem;
+                const taken = doseItem.taken;
+                const isOverdue = doseItem.isOverdue;
+                const isSkipped = doseItem.status === "skipped";
+                return (
+                  <View key={doseItem.id} style={styles.doseCard}>
+                    <View
+                      style={[
+                        styles.doseBadge,
+                        { backgroundColor: `${medication.color}15` },
+                      ]}
+                    >
+                      <Ionicons
+                        name="medical"
+                        size={24}
+                        color={medication.color}
+                      />
+                    </View>
+                    <View style={styles.doseInfo}>
+                      <View>
+                        <Text style={styles.medicineName}>
+                          {medication.name}
+                        </Text>
+                        <Text style={styles.dosageInfo}>
+                          {medication.dosage}
+                        </Text>
+                      </View>
+                      <View style={styles.doseTime}>
+                        <Ionicons
+                          name="time-outline"
+                          size={16}
+                          color={SkeuoTheme.colors.textSecondary}
+                        />
+                        <Text style={styles.timeText}>{timeLabel}</Text>
+                      </View>
+                      {!doseItem.isResolved && (
+                        <View style={styles.inlineStatusWrap}>
+                          <StatusBadge
+                            status={
+                              scheduledTime
+                                ? isOverdue
+                                  ? "overdue"
+                                  : "upcoming"
+                                : "upcoming"
+                            }
+                            compact
+                          />
+                        </View>
+                      )}
+                    </View>
+                    {taken ? (
+                      <StatusBadge status="taken" />
+                    ) : isSkipped ? (
+                      <StatusBadge status="skipped" />
+                    ) : (
+                      <View style={styles.doseActionsRow}>
+                        <TouchableOpacity
+                          style={[
+                            styles.skipDoseButton,
+                            { borderColor: medication.color },
+                          ]}
+                          onPress={() =>
+                            confirmSkipDose(medication, scheduledTime)
+                          }
+                        >
+                          <Text
+                            style={[
+                              styles.skipDoseText,
+                              { color: medication.color },
+                            ]}
+                          >
+                            Skip
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.takeDoseButton,
+                            { backgroundColor: medication.color },
+                          ]}
+                          onPress={() =>
+                            handleTakeDose(medication, scheduledTime)
+                          }
+                        >
+                          <Text style={styles.takeDoseText}>
+                            {scheduledTime ? "Take" : "Log"}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                );
+              })
             )}
           </View>
         </View>
 
-        <View style={styles.quickActionsContainer}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.quickActionsGrid}>
-            {QUICK_ACTIONS.map((action) => (
-              <Link href={action.route as any} key={action.label} asChild>
-                <TouchableOpacity style={styles.actionButton}>
-                  <LinearGradient
-                    colors={action.gradient}
-                    style={styles.actionGradient}
-                  >
-                    <View style={styles.actionContent}>
-                      <View
-                        style={[
-                          styles.actionIcon,
-                          { backgroundColor: `${action.color}55` },
-                        ]}
-                      >
-                        <Ionicons name={action.icon} size={28} color="white" />
-                      </View>
-                      <Text style={styles.actionLabel}>{action.label}</Text>
-                    </View>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </Link>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Today&apos;s Schedule</Text>
-            <Link href="/calendar" asChild>
-              <TouchableOpacity>
-                <Text style={styles.seeAllButton}>See All</Text>
-              </TouchableOpacity>
-            </Link>
-          </View>
-          {scheduledDoses.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons
-                name="medical-outline"
-                size={48}
-                color={SkeuoTheme.colors.textTertiary}
-              />
-              <Text style={styles.emptyStateText}>
-                No medications scheduled for today
-              </Text>
-              <Link href="/medications/add" asChild>
-                <TouchableOpacity style={styles.addMedicationButton}>
-                  <Text style={styles.addMedicationButtonText}>
-                    Add Medication
+        <Modal
+          visible={showNotifications}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowNotifications(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <View>
+                  <Text style={styles.modalTitle}>Notifications</Text>
+                  <Text style={styles.modalSubtitle}>
+                    {unreadNotificationCount} unread of{" "}
+                    {notificationItems.length}
                   </Text>
-                </TouchableOpacity>
-              </Link>
-            </View>
-          ) : (
-            scheduledDoses.map((doseItem) => {
-              const { medication, scheduledTime, timeLabel } = doseItem;
-              const taken = doseItem.taken;
-              const isOverdue = doseItem.isOverdue;
-              const isSkipped = doseItem.status === "skipped";
-              return (
-                <View key={doseItem.id} style={styles.doseCard}>
-                  <View
-                    style={[
-                      styles.doseBadge,
-                      { backgroundColor: `${medication.color}15` },
-                    ]}
+                </View>
+                <View style={styles.modalHeaderActions}>
+                  <TouchableOpacity
+                    onPress={handleMarkAllNotificationsRead}
+                    style={styles.markAllButton}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={styles.markAllText}>Mark all read</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setShowNotifications(false)}
+                    style={styles.closeButton}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
                     <Ionicons
-                      name="medical"
+                      name="close"
                       size={24}
-                      color={medication.color}
+                      color={SkeuoTheme.colors.textPrimary}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              {notificationItems.map((doseItem) => (
+                <TouchableOpacity
+                  key={doseItem.id}
+                  style={[
+                    styles.notificationItem,
+                    doseItem.isRead && styles.notificationItemRead,
+                  ]}
+                  onPress={() => handleMarkNotificationRead(doseItem.id)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.notificationIcon}>
+                    <Ionicons
+                      name={doseItem.isRead ? "checkmark-done" : "medical"}
+                      size={24}
+                      color={
+                        doseItem.isRead
+                          ? SkeuoTheme.colors.accentDark
+                          : doseItem.medication.color
+                      }
                     />
                   </View>
-                  <View style={styles.doseInfo}>
-                    <View>
-                      <Text style={styles.medicineName}>{medication.name}</Text>
-                      <Text style={styles.dosageInfo}>{medication.dosage}</Text>
+                  <View style={styles.notificationContent}>
+                    <Text style={styles.notificationTitle}>
+                      {doseItem.medication.name}
+                    </Text>
+                    <Text style={styles.notificationMessage}>
+                      {doseItem.medication.dosage}
+                    </Text>
+                    <View style={styles.notificationMetaWrap}>
+                      {doseItem.scheduledTime ? (
+                        <StatusBadge
+                          status={doseItem.isOverdue ? "overdue" : "upcoming"}
+                          compact
+                        />
+                      ) : (
+                        <Text style={styles.notificationMeta}>As needed</Text>
+                      )}
                     </View>
-                    <View style={styles.doseTime}>
-                      <Ionicons
-                        name="time-outline"
-                        size={16}
-                        color={SkeuoTheme.colors.textSecondary}
-                      />
-                      <Text style={styles.timeText}>{timeLabel}</Text>
-                    </View>
-                    {!doseItem.isResolved && (
-                      <Text style={styles.scheduleStateText}>
-                        {scheduledTime
-                          ? isOverdue
-                            ? "Due now"
-                            : "Upcoming"
-                          : "As needed"}
-                      </Text>
-                    )}
+                    <Text style={styles.notificationTime}>
+                      {doseItem.timeLabel}
+                    </Text>
                   </View>
-                  {taken ? (
-                    <View style={[styles.takenBadge]}>
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={20}
-                        color={SkeuoTheme.colors.success}
-                      />
-                      <Text style={styles.takenText}>Taken</Text>
-                    </View>
-                  ) : isSkipped ? (
-                    <View style={styles.skippedBadge}>
-                      <Ionicons
-                        name="play-skip-forward-circle"
-                        size={20}
-                        color={SkeuoTheme.colors.textSecondary}
-                      />
-                      <Text style={styles.skippedText}>Skipped</Text>
-                    </View>
-                  ) : (
-                    <View style={styles.doseActionsRow}>
-                      <TouchableOpacity
-                        style={[
-                          styles.skipDoseButton,
-                          { borderColor: medication.color },
-                        ]}
-                        onPress={() =>
-                          confirmSkipDose(medication, scheduledTime)
-                        }
-                      >
-                        <Text
-                          style={[
-                            styles.skipDoseText,
-                            { color: medication.color },
-                          ]}
-                        >
-                          Skip
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[
-                          styles.takeDoseButton,
-                          { backgroundColor: medication.color },
-                        ]}
-                        onPress={() =>
-                          handleTakeDose(medication, scheduledTime)
-                        }
-                      >
-                        <Text style={styles.takeDoseText}>
-                          {scheduledTime ? "Take" : "Log"}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-              );
-            })
-          )}
-        </View>
-      </View>
-
-      <Modal
-        visible={showNotifications}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowNotifications(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.modalTitle}>Notifications</Text>
-                <Text style={styles.modalSubtitle}>
-                  {unreadNotificationCount} unread of {notificationItems.length}
-                </Text>
-              </View>
-              <View style={styles.modalHeaderActions}>
-                <TouchableOpacity
-                  onPress={handleMarkAllNotificationsRead}
-                  style={styles.markAllButton}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Text style={styles.markAllText}>Mark all read</Text>
+                  {!doseItem.isRead && <View style={styles.unreadDot} />}
                 </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setShowNotifications(false)}
-                  style={styles.closeButton}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Ionicons
-                    name="close"
-                    size={24}
-                    color={SkeuoTheme.colors.textPrimary}
-                  />
-                </TouchableOpacity>
-              </View>
+              ))}
             </View>
-            {notificationItems.map((doseItem) => (
-              <TouchableOpacity
-                key={doseItem.id}
-                style={[
-                  styles.notificationItem,
-                  doseItem.isRead && styles.notificationItemRead,
-                ]}
-                onPress={() => handleMarkNotificationRead(doseItem.id)}
-                activeOpacity={0.8}
-              >
-                <View style={styles.notificationIcon}>
-                  <Ionicons
-                    name={doseItem.isRead ? "checkmark-done" : "medical"}
-                    size={24}
-                    color={
-                      doseItem.isRead
-                        ? SkeuoTheme.colors.accentDark
-                        : doseItem.medication.color
-                    }
-                  />
-                </View>
-                <View style={styles.notificationContent}>
-                  <Text style={styles.notificationTitle}>
-                    {doseItem.medication.name}
-                  </Text>
-                  <Text style={styles.notificationMessage}>
-                    {doseItem.medication.dosage}
-                  </Text>
-                  <Text style={styles.notificationMeta}>
-                    {doseItem.scheduledTime
-                      ? doseItem.isOverdue
-                        ? "Overdue"
-                        : "Scheduled"
-                      : "As needed"}
-                  </Text>
-                  <Text style={styles.notificationTime}>
-                    {doseItem.timeLabel}
-                  </Text>
-                </View>
-                {!doseItem.isRead && <View style={styles.unreadDot} />}
-              </TouchableOpacity>
-            ))}
           </View>
-        </View>
-      </Modal>
-    </ScrollView>
+        </Modal>
+      </ScrollView>
+      <FeedbackSnackbar
+        visible={snackbarVisible}
+        message={snackbarMessage}
+        onHide={() => setSnackbarVisible(false)}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     backgroundColor: SkeuoTheme.colors.pageBackground,
@@ -883,11 +926,8 @@ const styles = StyleSheet.create({
     color: SkeuoTheme.colors.textSecondary,
     fontSize: 14,
   },
-  scheduleStateText: {
-    fontSize: 12,
-    color: SkeuoTheme.colors.textTertiary,
-    marginTop: 4,
-    fontWeight: "600",
+  inlineStatusWrap: {
+    marginTop: 6,
   },
   takeDoseButton: {
     paddingVertical: 8,
@@ -1079,6 +1119,11 @@ const styles = StyleSheet.create({
     color: SkeuoTheme.colors.accentDark,
     fontWeight: "600",
   },
+  notificationMetaWrap: {
+    marginTop: 2,
+    marginBottom: 2,
+    alignSelf: "flex-start",
+  },
   notificationTime: {
     fontSize: 12,
     color: SkeuoTheme.colors.textTertiary,
@@ -1101,7 +1146,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: SkeuoTheme.colors.textSecondary,
     marginTop: 10,
-    marginBottom: 20,
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: SkeuoTheme.colors.textPrimary,
+    marginTop: 12,
+  },
+  emptyActionsRow: {
+    flexDirection: "row",
+    gap: 10,
   },
   addMedicationButton: {
     backgroundColor: SkeuoTheme.colors.accent,
@@ -1109,23 +1165,20 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 20,
   },
+  secondaryEmptyButton: {
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+  },
   addMedicationButtonText: {
     color: "white",
     fontWeight: "600",
   },
-  takenBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: SkeuoTheme.colors.successSurface,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    marginLeft: 10,
-  },
-  takenText: {
-    color: SkeuoTheme.colors.success,
+  secondaryEmptyButtonText: {
+    color: SkeuoTheme.colors.textPrimary,
     fontWeight: "600",
-    fontSize: 14,
-    marginLeft: 4,
   },
 });

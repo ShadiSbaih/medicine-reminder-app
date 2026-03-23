@@ -6,13 +6,13 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SkeuoTheme } from "../../constants/theme";
@@ -226,7 +226,7 @@ export default function MedicationsScreen() {
                       style={styles.titleRow}
                       onPress={() =>
                         router.push({
-                          pathname: "/medications/[id]",
+                          pathname: "./[id]",
                           params: { id: medication.id },
                         })
                       }

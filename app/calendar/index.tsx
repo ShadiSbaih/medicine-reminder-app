@@ -1,3 +1,5 @@
+import { FeedbackSnackbar } from "@/components/ui/feedback-snackbar";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { doseService } from "@/services/dose-service";
 import { todayTimelineService } from "@/services/today-timeline-service";
 import { buildDoseTimestamp, TimelineDose } from "@/shared/utils/dose-timeline";
@@ -29,6 +31,13 @@ export default function CalendarScreen() {
   const [selectedTotalScheduled, setSelectedTotalScheduled] = useState(0);
   const [selectedResolvedCount, setSelectedResolvedCount] = useState(0);
   const [selectedOverdueCount, setSelectedOverdueCount] = useState(0);
+  const [snackbarMessage, setSnackbarMessage] = useState("");
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
+
+  const showFeedback = useCallback((message: string) => {
+    setSnackbarMessage(message);
+    setSnackbarVisible(true);
+  }, []);
 
   const loadCalendarHistory = useCallback(async () => {
     try {
@@ -45,7 +54,9 @@ export default function CalendarScreen() {
       setTimelineItems(timeline.items);
       setSelectedTotalScheduled(timeline.totalScheduled);
       setSelectedResolvedCount(
-        timeline.items.filter((item) => Boolean(item.scheduledTime) && item.isResolved).length,
+        timeline.items.filter(
+          (item) => Boolean(item.scheduledTime) && item.isResolved,
+        ).length,
       );
       setSelectedOverdueCount(timeline.overdueCount);
     } catch (error) {
@@ -155,107 +166,117 @@ export default function CalendarScreen() {
     return calendar;
   };
 
+  const groupedMedications =
+    todayTimelineService.groupByMedication(timelineItems);
+
   const renderMedicationsForDate = () => {
-    return todayTimelineService
-      .groupByMedication(timelineItems)
-      .map(({ medication, items }) => {
-        const scheduledTimes = items.map((item) => item.timeLabel);
-        const takenCount = items.filter((item) => item.taken).length;
-        const hasScheduledTimes = items.some((item) =>
-          Boolean(item.scheduledTime),
-        );
-        const allResolved =
-          hasScheduledTimes && items.every((item) => item.isResolved);
+    return groupedMedications.map(({ medication, items }) => {
+      const scheduledTimes = items.map((item) => item.timeLabel);
+      const takenCount = items.filter((item) => item.taken).length;
+      const hasScheduledTimes = items.some((item) =>
+        Boolean(item.scheduledTime),
+      );
+      const allResolved =
+        hasScheduledTimes && items.every((item) => item.isResolved);
 
-        const nextDose = items.find((item) => !item.isResolved) ?? items[0];
-        const nextTime = nextDose?.scheduledTime;
-        const timestamp = buildDoseTimestamp(selectedDate, nextTime);
+      const nextDose = items.find((item) => !item.isResolved) ?? items[0];
+      const nextTime = nextDose?.scheduledTime;
+      const timestamp = buildDoseTimestamp(selectedDate, nextTime);
+      const hasSkipped = items.some((item) => item.status === "skipped");
+      const resolvedBadge =
+        hasSkipped && takenCount === 0 ? "skipped" : "taken";
 
-        return (
-          <View key={medication.id} style={styles.medicationCard}>
-            <View
-              style={[
-                styles.medicationColor,
-                { backgroundColor: medication.color },
-              ]}
-            />
-            <View style={styles.medicationInfo}>
-              <Text style={styles.medicationName}>{medication.name}</Text>
-              <Text style={styles.medicationDosage}>{medication.dosage}</Text>
-              <Text style={styles.medicationTime}>
-                {scheduledTimes.join(" · ")}
-              </Text>
-            </View>
-            {allResolved ? (
-              <View style={styles.takenBadge}>
-                <Ionicons
-                  name="checkmark-circle"
-                  size={20}
-                  color={SkeuoTheme.colors.success}
+      return (
+        <View key={medication.id} style={styles.medicationCard}>
+          <View
+            style={[
+              styles.medicationColor,
+              { backgroundColor: medication.color },
+            ]}
+          />
+          <View style={styles.medicationInfo}>
+            <Text style={styles.medicationName}>{medication.name}</Text>
+            <Text style={styles.medicationDosage}>{medication.dosage}</Text>
+            <Text style={styles.medicationTime}>
+              {scheduledTimes.join(" · ")}
+            </Text>
+            {!allResolved && (
+              <View style={styles.inlineStatusWrap}>
+                <StatusBadge
+                  status={nextDose?.isOverdue ? "overdue" : "upcoming"}
+                  compact
                 />
-                <Text style={styles.takenText}>Resolved {takenCount}</Text>
               </View>
-            ) : (
-              <View style={styles.doseActionsRow}>
-                <TouchableOpacity
-                  style={[
-                    styles.skipDoseButton,
-                    { borderColor: medication.color },
-                  ]}
-                  onPress={() =>
-                    confirmSkipDose(medication.name, async () => {
-                      if (nextTime) {
-                        await doseService.skipScheduledDose(
-                          medication.id,
-                          nextTime,
-                          timestamp,
-                        );
-                      } else {
-                        await doseService.skipAsNeededDose(
-                          medication.id,
-                          timestamp,
-                        );
-                      }
-                      await loadSelectedDateTimeline(selectedDate);
-                      await loadCalendarHistory();
-                    })
-                  }
-                >
-                  <Text
-                    style={[styles.skipDoseText, { color: medication.color }]}
-                  >
-                    Skip
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.takeDoseButton,
-                    { backgroundColor: medication.color },
-                  ]}
-                  onPress={async () => {
+            )}
+          </View>
+          {allResolved ? (
+            <View style={styles.resolvedWrap}>
+              <StatusBadge status={resolvedBadge} />
+              <Text style={styles.resolvedCountText}>{takenCount} taken</Text>
+            </View>
+          ) : (
+            <View style={styles.doseActionsRow}>
+              <TouchableOpacity
+                style={[
+                  styles.skipDoseButton,
+                  { borderColor: medication.color },
+                ]}
+                onPress={() =>
+                  confirmSkipDose(medication.name, async () => {
                     if (nextTime) {
-                      await doseService.recordScheduledDose(
+                      await doseService.skipScheduledDose(
                         medication.id,
                         nextTime,
                         timestamp,
                       );
                     } else {
-                      await doseService.recordAsNeededDose(
+                      await doseService.skipAsNeededDose(
                         medication.id,
                         timestamp,
                       );
                     }
                     await loadSelectedDateTimeline(selectedDate);
                     await loadCalendarHistory();
-                  }}
+                    showFeedback(`Skipped ${medication.name} for this slot`);
+                  })
+                }
+              >
+                <Text
+                  style={[styles.skipDoseText, { color: medication.color }]}
                 >
-                  <Text style={styles.takeDoseText}>Take</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        );
-      });
+                  Skip
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.takeDoseButton,
+                  { backgroundColor: medication.color },
+                ]}
+                onPress={async () => {
+                  if (nextTime) {
+                    await doseService.recordScheduledDose(
+                      medication.id,
+                      nextTime,
+                      timestamp,
+                    );
+                  } else {
+                    await doseService.recordAsNeededDose(
+                      medication.id,
+                      timestamp,
+                    );
+                  }
+                  await loadSelectedDateTimeline(selectedDate);
+                  await loadCalendarHistory();
+                  showFeedback(`Marked ${medication.name} as taken`);
+                }}
+              >
+                <Text style={styles.takeDoseText}>Take</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      );
+    });
   };
 
   return (
@@ -382,11 +403,36 @@ export default function CalendarScreen() {
               </Text>
             </View>
           </View>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {renderMedicationsForDate()}
-          </ScrollView>
+          {groupedMedications.length === 0 ? (
+            <View style={styles.emptyStateCard}>
+              <Ionicons
+                name="calendar-clear-outline"
+                size={38}
+                color={SkeuoTheme.colors.textTertiary}
+              />
+              <Text style={styles.emptyStateTitle}>No doses for this day</Text>
+              <Text style={styles.emptyStateText}>
+                Choose another date or add a medication to build your schedule.
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyStateButton}
+                onPress={() => router.push("/medications/add")}
+              >
+                <Text style={styles.emptyStateButtonText}>Add Medication</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {renderMedicationsForDate()}
+            </ScrollView>
+          )}
         </View>
       </View>
+      <FeedbackSnackbar
+        visible={snackbarVisible}
+        message={snackbarMessage}
+        onHide={() => setSnackbarVisible(false)}
+      />
     </View>
   );
 }
@@ -595,6 +641,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: SkeuoTheme.colors.textSecondary,
   },
+  inlineStatusWrap: {
+    marginTop: 6,
+    alignSelf: "flex-start",
+  },
+  resolvedWrap: {
+    marginLeft: 10,
+    alignItems: "flex-end",
+    gap: 4,
+  },
+  resolvedCountText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: SkeuoTheme.colors.textSecondary,
+  },
   takeDoseButton: {
     paddingVertical: 8,
     paddingHorizontal: 15,
@@ -621,18 +681,36 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 14,
   },
-  takenBadge: {
-    flexDirection: "row",
+  emptyStateCard: {
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    borderRadius: 16,
+    padding: 20,
     alignItems: "center",
-    backgroundColor: SkeuoTheme.colors.successSurface,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
   },
-  takenText: {
-    color: SkeuoTheme.colors.success,
-    fontWeight: "600",
+  emptyStateTitle: {
+    marginTop: 10,
+    fontSize: 18,
+    fontWeight: "700",
+    color: SkeuoTheme.colors.textPrimary,
+  },
+  emptyStateText: {
+    marginTop: 8,
     fontSize: 14,
-    marginLeft: 4,
+    color: SkeuoTheme.colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  emptyStateButton: {
+    backgroundColor: SkeuoTheme.colors.accent,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  emptyStateButtonText: {
+    color: SkeuoTheme.colors.white,
+    fontWeight: "700",
   },
 });

@@ -102,12 +102,13 @@ export async function scheduleRefillReminder(
 
     // Schedule a notification when supply is low
     if (medication.currentSupply <= medication.refillAt) {
-      const identifier = await Notifications.presentNotificationAsync({
+      const identifier = await Notifications.scheduleNotificationAsync({
         content: {
           title: "Refill Reminder",
           body: `Your ${medication.name} supply is running low. Current supply: ${medication.currentSupply}`,
           data: { medicationId: medication.id, type: "refill" },
         },
+        trigger: null,
       });
 
       return identifier;
@@ -165,12 +166,13 @@ export async function sendMedicationAddedNotification(
     const initialized = await registerForPushNotificationsAsync();
     if (!initialized) return;
 
-    return await Notifications.presentNotificationAsync({
+    return await Notifications.scheduleNotificationAsync({
       content: {
         title: "Medication Added",
         body: `${medication.name} (${medication.dosage}) was added successfully.`,
         data: { medicationId: medication.id, type: "medication-added" },
       },
+      trigger: null,
     });
   } catch (error) {
     console.error("Error sending medication added notification:", error);

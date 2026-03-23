@@ -1,3 +1,4 @@
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -170,6 +171,12 @@ export default function HistoryScreen() {
         },
       ],
     );
+  };
+
+  const resetFilters = () => {
+    setSelectedFilter("all");
+    setTimeFilter("all");
+    setSearchQuery("");
   };
 
   return (
@@ -381,6 +388,25 @@ export default function HistoryScreen() {
                   ? "Your dose activity will appear here once you start logging medications."
                   : "No records match your current filters."}
               </Text>
+              {selectedFilter === "all" && !searchQuery ? (
+                <TouchableOpacity
+                  style={styles.emptyStatePrimaryButton}
+                  onPress={() => router.push("/medications/add")}
+                >
+                  <Text style={styles.emptyStatePrimaryButtonText}>
+                    Add Medication
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.emptyStateSecondaryButton}
+                  onPress={resetFilters}
+                >
+                  <Text style={styles.emptyStateSecondaryButtonText}>
+                    Reset Filters
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
@@ -426,70 +452,13 @@ export default function HistoryScreen() {
                   </View>
                   <View style={styles.statusContainer}>
                     {getDoseStatus(dose) === "taken" && (
-                      <View
-                        style={[
-                          styles.statusBadge,
-                          { backgroundColor: SkeuoTheme.colors.successSurface },
-                        ]}
-                      >
-                        <Ionicons
-                          name="checkmark-circle"
-                          size={16}
-                          color={SkeuoTheme.colors.success}
-                        />
-                        <Text
-                          style={[
-                            styles.statusText,
-                            { color: SkeuoTheme.colors.success },
-                          ]}
-                        >
-                          Taken
-                        </Text>
-                      </View>
+                      <StatusBadge status="taken" />
                     )}
                     {getDoseStatus(dose) === "missed" && (
-                      <View
-                        style={[
-                          styles.statusBadge,
-                          { backgroundColor: SkeuoTheme.colors.dangerSurface },
-                        ]}
-                      >
-                        <Ionicons
-                          name="close-circle"
-                          size={16}
-                          color={SkeuoTheme.colors.danger}
-                        />
-                        <Text
-                          style={[
-                            styles.statusText,
-                            { color: SkeuoTheme.colors.danger },
-                          ]}
-                        >
-                          Missed
-                        </Text>
-                      </View>
+                      <StatusBadge status="missed" />
                     )}
                     {getDoseStatus(dose) === "skipped" && (
-                      <View
-                        style={[
-                          styles.statusBadge,
-                          { backgroundColor: SkeuoTheme.colors.neutralSurface },
-                        ]}
-                      >
-                        <Ionicons
-                          name="play-skip-forward-circle"
-                          size={16}
-                          color={SkeuoTheme.colors.textSecondary}
-                        />
-                        <Text
-                          style={[
-                            styles.statusText,
-                            { color: SkeuoTheme.colors.textSecondary },
-                          ]}
-                        >
-                          Skipped
-                        </Text>
-                      </View>
+                      <StatusBadge status="skipped" />
                     )}
                   </View>
                 </View>
@@ -712,6 +681,29 @@ const styles = StyleSheet.create({
     color: SkeuoTheme.colors.textSecondary,
     textAlign: "center",
     lineHeight: 20,
+    marginBottom: 12,
+  },
+  emptyStatePrimaryButton: {
+    backgroundColor: SkeuoTheme.colors.accent,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  emptyStatePrimaryButtonText: {
+    color: SkeuoTheme.colors.white,
+    fontWeight: "700",
+  },
+  emptyStateSecondaryButton: {
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+  emptyStateSecondaryButtonText: {
+    color: SkeuoTheme.colors.textPrimary,
+    fontWeight: "700",
   },
   dateGroup: {
     marginBottom: 25,
@@ -768,18 +760,6 @@ const styles = StyleSheet.create({
   },
   statusContainer: {
     alignItems: "flex-end",
-  },
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  statusText: {
-    marginLeft: 4,
-    fontSize: 14,
-    fontWeight: "600",
   },
   clearDataContainer: {
     padding: 20,
