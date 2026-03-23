@@ -5,6 +5,8 @@ import { Medication } from "./storage";
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
@@ -13,8 +15,6 @@ Notifications.setNotificationHandler({
 export async function registerForPushNotificationsAsync(): Promise<
   string | null
 > {
-  let token: string | null = null;
-
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
 
@@ -28,9 +28,6 @@ export async function registerForPushNotificationsAsync(): Promise<
   }
 
   try {
-    const response = await Notifications.getExpoPushTokenAsync();
-    token = response.data;
-
     if (Platform.OS === "android") {
       await Notifications.setNotificationChannelAsync("default", {
         name: "default",
@@ -39,10 +36,9 @@ export async function registerForPushNotificationsAsync(): Promise<
         lightColor: "#1a8e2d",
       });
     }
-
-    return token;
+    return "local-notifications-enabled";
   } catch (error) {
-    console.error("Error getting push token:", error);
+    console.error("Error initializing notifications:", error);
     return null;
   }
 }
@@ -53,32 +49,23 @@ export async function scheduleMedicationReminder(
   if (!medication.reminderEnabled) return;
 
   try {
-    // Schedule notifications for each time
+    let latestIdentifier: string | undefined;
     for (const time of medication.times) {
       const [hours, minutes] = time.split(":").map(Number);
-      const today = new Date();
-      today.setHours(hours, minutes, 0, 0);
-
-      // If time has passed for today, schedule for tomorrow
-      if (today < new Date()) {
-        today.setDate(today.getDate() + 1);
-      }
-
-      const identifier = await Notifications.scheduleNotificationAsync({
+      latestIdentifier = await Notifications.scheduleNotificationAsync({
         content: {
           title: "Medication Reminder",
           body: `Time to take ${medication.name} (${medication.dosage})`,
-          data: { medicationId: medication.id },
+          data: { medicationId: medication.id, scheduledTime: time },
         },
         trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
           hour: hours,
           minute: minutes,
-          repeats: true,
         },
       });
-
-      return identifier;
     }
+    return latestIdentifier;
   } catch (error) {
     console.error("Error scheduling medication reminder:", error);
     return undefined;

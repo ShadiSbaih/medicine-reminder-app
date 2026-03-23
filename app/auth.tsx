@@ -1,15 +1,17 @@
-import { useState, useEffect } from "react";
-import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    Dimensions,
-} from "react-native";
-import { useRouter } from "expo-router";
-import * as LocalAuthentication from "expo-local-authentication";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import * as LocalAuthentication from "expo-local-authentication";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
+import {
+    Dimensions,
+    Image,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { SkeuoTheme } from "../constants/theme";
 
 const { width } = Dimensions.get("window");
 
@@ -34,15 +36,13 @@ export default function AuthScreen() {
 
             // Check if device has biometric hardware
             const hasHardware = await LocalAuthentication.hasHardwareAsync();
-            const supportedTypes =
-                await LocalAuthentication.supportedAuthenticationTypesAsync();
             const hasBiometrics = await LocalAuthentication.isEnrolledAsync();
 
             const auth = await LocalAuthentication.authenticateAsync({
                 promptMessage:
                     hasHardware && hasBiometrics
                         ? "Use Face ID or Touch ID"
-                        : "Enter your PIN to access MedRemind",
+                        : "Enter your PIN to access Pillora",
                 fallbackLabel: "Use PIN",
                 cancelLabel: "Cancel",
                 disableDeviceFallback: false,
@@ -67,13 +67,17 @@ export default function AuthScreen() {
 
 
     return (
-        <LinearGradient colors={["#4CAF50", "#2E7D32"]} style={styles.container}>
+        <LinearGradient colors={["#8ca6d8", "#627fb5"]} style={styles.container}>
             <View style={styles.content}>
                 <View style={styles.iconContainer}>
-                    <Ionicons name="medical" size={80} color="white" />
+                    <Image
+                        source={require("../assets/images/splash_logo.png")}
+                        style={styles.brandLogo}
+                        resizeMode="contain"
+                    />
                 </View>
 
-                <Text style={styles.title}>MedRemind</Text>
+                <Text style={styles.title}>Pillora</Text>
                 <Text style={styles.subtitle}>Your Personal Medication Assistant</Text>
 
                 <View style={styles.card}>
@@ -129,16 +133,20 @@ const styles = StyleSheet.create({
     iconContainer: {
         width: 120,
         height: 120,
-        backgroundColor: "rgba(255, 255, 255, 0.2)",
+        backgroundColor: "rgba(230, 236, 245, 0.7)",
         borderRadius: 60,
         justifyContent: "center",
         alignItems: "center",
         marginBottom: 20,
     },
+    brandLogo: {
+        width: 90,
+        height: 90,
+    },
     title: {
         fontSize: 36,
         fontWeight: "bold",
-        color: "white",
+        color: SkeuoTheme.colors.white,
         marginBottom: 10,
         textShadowColor: "rgba(0, 0, 0, 0.2)",
         textShadowOffset: { width: 1, height: 1 },
@@ -146,42 +154,44 @@ const styles = StyleSheet.create({
     },
     subtitle: {
         fontSize: 18,
-        color: "rgba(255, 255, 255, 0.9)",
+        color: "rgba(255, 255, 255, 0.95)",
         marginBottom: 40,
         textAlign: "center",
     },
     card: {
-        backgroundColor: "white",
-        borderRadius: 20,
+        backgroundColor: SkeuoTheme.colors.cardBackground,
+        borderRadius: SkeuoTheme.radius.lg,
         padding: 30,
         width: width - 40,
         alignItems: "center",
-        shadowColor: "#000",
+        borderWidth: 1,
+        borderColor: SkeuoTheme.colors.border,
+        shadowColor: "#8e9ab0",
         shadowOffset: {
-            width: 0,
-            height: 2,
+            width: 6,
+            height: 6,
         },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-        elevation: 5,
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 7,
     },
     welcomeText: {
         fontSize: 24,
         fontWeight: "bold",
-        color: "#333",
+        color: SkeuoTheme.colors.textPrimary,
         marginBottom: 10,
     },
     instructionText: {
         fontSize: 16,
-        color: "#666",
+        color: SkeuoTheme.colors.textSecondary,
         textAlign: "center",
         marginBottom: 30,
     },
     button: {
-        backgroundColor: "#4CAF50",
+        backgroundColor: SkeuoTheme.colors.accent,
         paddingVertical: 15,
         paddingHorizontal: 30,
-        borderRadius: 12,
+        borderRadius: SkeuoTheme.radius.md,
         width: "100%",
         flexDirection: "row",
         alignItems: "center",
@@ -203,7 +213,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
         marginTop: 20,
         padding: 10,
-        backgroundColor: "#ffebee",
+        backgroundColor: "#f9e5e5",
         borderRadius: 8,
     },
     errorText: {

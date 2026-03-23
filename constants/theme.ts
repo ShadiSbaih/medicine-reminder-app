@@ -51,3 +51,56 @@ export const Fonts = Platform.select({
     mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   },
 });
+
+export const SkeuoTheme = {
+  colors: {
+    appBackground: "#d7dfeb",
+    pageBackground: "#e6ecf5",
+    cardBackground: "#eef3fb",
+    cardInset: "#d5ddea",
+    textPrimary: "#1f2a3a",
+    textSecondary: "#4f5f77",
+    accent: "#2f6fd6",
+    success: "#2f9a62",
+    warning: "#d9822b",
+    danger: "#c44747",
+    border: "#c3ccda",
+    white: "#ffffff",
+  },
+  radius: {
+    sm: 10,
+    md: 16,
+    lg: 24,
+    pill: 999,
+  },
+  spacing: {
+    xs: 6,
+    sm: 10,
+    md: 16,
+    lg: 22,
+    xl: 28,
+  },
+  shadow: {
+    outer: {
+      shadowColor: "#8e9ab0",
+      shadowOffset: { width: 6, height: 6 },
+      shadowOpacity: 0.32,
+      shadowRadius: 10,
+      elevation: 8,
+    },
+    outerSoft: {
+      shadowColor: "#95a1b6",
+      shadowOffset: { width: 4, height: 4 },
+      shadowOpacity: 0.22,
+      shadowRadius: 8,
+      elevation: 5,
+    },
+    innerGlow: {
+      shadowColor: "#ffffff",
+      shadowOffset: { width: -4, height: -4 },
+      shadowOpacity: 0.95,
+      shadowRadius: 8,
+      elevation: 0,
+    },
+  },
+};

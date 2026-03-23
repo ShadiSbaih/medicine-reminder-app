@@ -1,32 +1,33 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Dimensions,
-  Animated,
-  Modal,
-  Alert,
-  AppState,
-} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Link, useRouter } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
-import Svg, { Circle } from "react-native-svg";
-import {
-  getMedications,
-  Medication,
-  getTodaysDoses,
-  recordDose,
-  DoseHistory,
-} from "../utils/storage";
 import { useFocusEffect } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Link } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Alert,
+  Animated,
+  AppState,
+  Dimensions,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import Svg, { Circle } from "react-native-svg";
+import { SkeuoTheme } from "../constants/theme";
 import {
   registerForPushNotificationsAsync,
   scheduleMedicationReminder,
 } from "../utils/notifications";
+import {
+  DoseHistory,
+  getMedications,
+  getTodaysDoses,
+  Medication,
+  recordDose,
+} from "../utils/storage";
 
 const { width } = Dimensions.get("window");
 
@@ -58,7 +59,7 @@ const QUICK_ACTIONS = [
   {
     icon: "medical-outline" as const,
     label: "Refill\nTracker",
-    route: "/refills" as const,
+    route: "/refills/index" as const,
     color: "#E64A19",
     gradient: ["#FF5722", "#E64A19"] as [string, string],
   },
@@ -68,6 +69,13 @@ interface CircularProgressProps {
   progress: number;
   totalDoses: number;
   completedDoses: number;
+}
+
+interface ScheduledDose {
+  id: string;
+  medication: Medication;
+  scheduledTime?: string;
+  timeLabel: string;
 }
 
 function CircularProgress({
@@ -131,10 +139,8 @@ function CircularProgress({
 }
 
 export default function HomeScreen() {
-  const router = useRouter();
   const [showNotifications, setShowNotifications] = useState(false);
-  const [medications, setMedications] = useState<Medication[]>([]);
-  const [todaysMedications, setTodaysMedications] = useState<Medication[]>([]);
+  const [scheduledDoses, setScheduledDoses] = useState<ScheduledDose[]>([]);
   const [completedDoses, setCompletedDoses] = useState(0);
   const [doseHistory, setDoseHistory] = useState<DoseHistory[]>([]);
 
@@ -146,7 +152,6 @@ export default function HomeScreen() {
       ]);
 
       setDoseHistory(todaysDoses);
-      setMedications(allMedications);
 
       // Filter medications for today
       const today = new Date();
@@ -168,10 +173,33 @@ export default function HomeScreen() {
         return false;
       });
 
-      setTodaysMedications(todayMeds);
+      const todaySchedule = todayMeds.flatMap((medication) => {
+        if (!medication.times.length) {
+          return [
+            {
+              id: `${medication.id}-as-needed`,
+              medication,
+              timeLabel: "As needed",
+            },
+          ];
+        }
+        return medication.times.map((time) => ({
+          id: `${medication.id}-${time}`,
+          medication,
+          scheduledTime: time,
+          timeLabel: time,
+        }));
+      });
 
-      // Calculate completed doses
-      const completed = todaysDoses.filter((dose) => dose.taken).length;
+      setScheduledDoses(todaySchedule);
+
+      const uniqueCompletedSchedule = new Set(
+        todaysDoses
+          .filter((dose) => dose.taken && dose.scheduledTime)
+          .map((dose) => `${dose.medicationId}-${dose.scheduledTime}`)
+      );
+
+      const completed = uniqueCompletedSchedule.size;
       setCompletedDoses(completed);
     } catch (error) {
       console.error("Error loading medications:", error);
@@ -227,9 +255,17 @@ export default function HomeScreen() {
     }, [loadMedications])
   );
 
-  const handleTakeDose = async (medication: Medication) => {
+  const handleTakeDose = async (
+    medication: Medication,
+    scheduledTime?: string
+  ) => {
     try {
-      await recordDose(medication.id, true, new Date().toISOString());
+      await recordDose(
+        medication.id,
+        true,
+        new Date().toISOString(),
+        scheduledTime
+      );
       await loadMedications(); // Reload data after recording dose
     } catch (error) {
       console.error("Error recording dose:", error);
@@ -237,20 +273,27 @@ export default function HomeScreen() {
     }
   };
 
-  const isDoseTaken = (medicationId: string) => {
+  const isDoseTaken = (medicationId: string, scheduledTime?: string) => {
     return doseHistory.some(
-      (dose) => dose.medicationId === medicationId && dose.taken
+      (dose) =>
+        dose.medicationId === medicationId &&
+        dose.taken &&
+        (!scheduledTime || dose.scheduledTime === scheduledTime)
     );
   };
 
+  const totalScheduledDoses = scheduledDoses.filter(
+    (dose) => Boolean(dose.scheduledTime)
+  ).length;
+
   const progress =
-    todaysMedications.length > 0
-      ? completedDoses / (todaysMedications.length * 2)
+    totalScheduledDoses > 0
+      ? completedDoses / totalScheduledDoses
       : 0;
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <LinearGradient colors={["#1a8e2d", "#146922"]} style={styles.header}>
+      <LinearGradient colors={["#8ca6d8", "#627fb5"]} style={styles.header}>
         <View style={styles.headerContent}>
           <View style={styles.headerTop}>
             <View style={styles.flex1}>
@@ -261,10 +304,10 @@ export default function HomeScreen() {
               onPress={() => setShowNotifications(true)}
             >
               <Ionicons name="notifications-outline" size={24} color="white" />
-              {todaysMedications.length > 0 && (
+              {scheduledDoses.length > 0 && (
                 <View style={styles.notificationBadge}>
                   <Text style={styles.notificationCount}>
-                    {todaysMedications.length}
+                    {scheduledDoses.length}
                   </Text>
                 </View>
               )}
@@ -272,7 +315,7 @@ export default function HomeScreen() {
           </View>
           <CircularProgress
             progress={progress}
-            totalDoses={todaysMedications.length * 2}
+            totalDoses={totalScheduledDoses}
             completedDoses={completedDoses}
           />
         </View>
@@ -283,7 +326,7 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.quickActionsGrid}>
             {QUICK_ACTIONS.map((action) => (
-              <Link href={action.route} key={action.label} asChild>
+              <Link href={action.route as any} key={action.label} asChild>
                 <TouchableOpacity style={styles.actionButton}>
                   <LinearGradient
                     colors={action.gradient}
@@ -304,14 +347,14 @@ export default function HomeScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Today's Schedule</Text>
+            <Text style={styles.sectionTitle}>Today&apos;s Schedule</Text>
             <Link href="/calendar" asChild>
               <TouchableOpacity>
                 <Text style={styles.seeAllButton}>See All</Text>
               </TouchableOpacity>
             </Link>
           </View>
-          {todaysMedications.length === 0 ? (
+          {scheduledDoses.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="medical-outline" size={48} color="#ccc" />
               <Text style={styles.emptyStateText}>
@@ -326,10 +369,11 @@ export default function HomeScreen() {
               </Link>
             </View>
           ) : (
-            todaysMedications.map((medication) => {
-              const taken = isDoseTaken(medication.id);
+            scheduledDoses.map((doseItem) => {
+              const { medication, scheduledTime, timeLabel } = doseItem;
+              const taken = isDoseTaken(medication.id, scheduledTime);
               return (
-                <View key={medication.id} style={styles.doseCard}>
+                <View key={doseItem.id} style={styles.doseCard}>
                   <View
                     style={[
                       styles.doseBadge,
@@ -349,7 +393,7 @@ export default function HomeScreen() {
                     </View>
                     <View style={styles.doseTime}>
                       <Ionicons name="time-outline" size={16} color="#666" />
-                      <Text style={styles.timeText}>{medication.times[0]}</Text>
+                      <Text style={styles.timeText}>{timeLabel}</Text>
                     </View>
                   </View>
                   {taken ? (
@@ -367,9 +411,11 @@ export default function HomeScreen() {
                         styles.takeDoseButton,
                         { backgroundColor: medication.color },
                       ]}
-                      onPress={() => handleTakeDose(medication)}
+                      onPress={() => handleTakeDose(medication, scheduledTime)}
                     >
-                      <Text style={styles.takeDoseText}>Take</Text>
+                      <Text style={styles.takeDoseText}>
+                        {scheduledTime ? "Take" : "Log"}
+                      </Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -396,21 +442,23 @@ export default function HomeScreen() {
                 <Ionicons name="close" size={24} color="#333" />
               </TouchableOpacity>
             </View>
-            {todaysMedications.map((medication) => (
-              <View key={medication.id} style={styles.notificationItem}>
+            {scheduledDoses.map((doseItem) => (
+              <View key={doseItem.id} style={styles.notificationItem}>
                 <View style={styles.notificationIcon}>
-                  <Ionicons name="medical" size={24} color={medication.color} />
+                  <Ionicons
+                    name="medical"
+                    size={24}
+                    color={doseItem.medication.color}
+                  />
                 </View>
                 <View style={styles.notificationContent}>
                   <Text style={styles.notificationTitle}>
-                    {medication.name}
+                    {doseItem.medication.name}
                   </Text>
                   <Text style={styles.notificationMessage}>
-                    {medication.dosage}
+                    {doseItem.medication.dosage}
                   </Text>
-                  <Text style={styles.notificationTime}>
-                    {medication.times[0]}
-                  </Text>
+                  <Text style={styles.notificationTime}>{doseItem.timeLabel}</Text>
                 </View>
               </View>
             ))}
@@ -424,7 +472,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: SkeuoTheme.colors.pageBackground,
   },
   header: {
     paddingTop: 50,
@@ -445,7 +493,7 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 18,
     fontWeight: "600",
-    color: "white",
+    color: SkeuoTheme.colors.white,
     opacity: 0.9,
   },
   content: {
@@ -502,23 +550,25 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#1a1a1a",
+    color: SkeuoTheme.colors.textPrimary,
     marginBottom: 5,
   },
   seeAllButton: {
-    color: "#2E7D32",
+    color: SkeuoTheme.colors.accent,
     fontWeight: "600",
   },
   doseCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "white",
-    borderRadius: 16,
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderRadius: SkeuoTheme.radius.md,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
     padding: 16,
     marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowColor: "#8e9ab0",
+    shadowOffset: { width: 5, height: 5 },
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 3,
   },
@@ -537,12 +587,12 @@ const styles = StyleSheet.create({
   medicineName: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
+    color: SkeuoTheme.colors.textPrimary,
     marginBottom: 4,
   },
   dosageInfo: {
     fontSize: 14,
-    color: "#666",
+    color: SkeuoTheme.colors.textSecondary,
     marginBottom: 4,
   },
   doseTime: {
@@ -551,7 +601,7 @@ const styles = StyleSheet.create({
   },
   timeText: {
     marginLeft: 5,
-    color: "#666",
+    color: SkeuoTheme.colors.textSecondary,
     fontSize: 14,
   },
   takeDoseButton: {
@@ -610,7 +660,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#146922",
+    borderColor: "#627fb5",
     paddingHorizontal: 4,
   },
   notificationCount: {
@@ -629,7 +679,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "white",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
@@ -644,7 +694,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#333",
+    color: SkeuoTheme.colors.textPrimary,
   },
   closeButton: {
     padding: 5,
@@ -653,7 +703,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     padding: 15,
     borderRadius: 12,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: SkeuoTheme.colors.pageBackground,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
     marginBottom: 10,
   },
   notificationIcon: {
@@ -671,12 +723,12 @@ const styles = StyleSheet.create({
   notificationTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
+    color: SkeuoTheme.colors.textPrimary,
     marginBottom: 4,
   },
   notificationMessage: {
     fontSize: 14,
-    color: "#666",
+    color: SkeuoTheme.colors.textSecondary,
     marginBottom: 4,
   },
   notificationTime: {
@@ -697,7 +749,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   addMedicationButton: {
-    backgroundColor: "#1a8e2d",
+    backgroundColor: SkeuoTheme.colors.accent,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 20,

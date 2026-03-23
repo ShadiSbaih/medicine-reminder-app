@@ -1,23 +1,24 @@
-import React, { useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Platform,
-} from "react-native";
-import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import {
-  getMedications,
-  getDoseHistory,
-  recordDose,
-  Medication,
-  DoseHistory,
-} from "../../utils/storage";
 import { useFocusEffect } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
+import {
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { SkeuoTheme } from "../../constants/theme";
+import {
+    DoseHistory,
+    getDoseHistory,
+    getMedications,
+    Medication,
+    recordDose,
+} from "../../utils/storage";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -38,7 +39,7 @@ export default function CalendarScreen() {
     } catch (error) {
       console.error("Error loading calendar data:", error);
     }
-  }, [selectedDate]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -57,8 +58,8 @@ export default function CalendarScreen() {
   const { days, firstDay } = getDaysInMonth(selectedDate);
 
   const renderCalendar = () => {
-    const calendar: JSX.Element[] = [];
-    let week: JSX.Element[] = [];
+    const calendar: React.ReactElement[] = [];
+    let week: React.ReactElement[] = [];
 
     // Add empty cells for days before the first day of the month
     for (let i = 0; i < firstDay; i++) {
@@ -115,9 +116,41 @@ export default function CalendarScreen() {
     );
 
     return medications.map((medication) => {
-      const taken = dayDoses.some(
-        (dose) => dose.medicationId === medication.id && dose.taken
-      );
+      const scheduledTimes = medication.times.length
+        ? medication.times
+        : ["As needed"];
+      const takenCount = scheduledTimes.filter((time) =>
+        dayDoses.some(
+          (dose) =>
+            dose.medicationId === medication.id &&
+            dose.taken &&
+            (time === "As needed" || dose.scheduledTime === time)
+        )
+      ).length;
+      const allTaken =
+        medication.times.length > 0 && takenCount === medication.times.length;
+
+      const nextTime =
+        medication.times.find(
+          (time) =>
+            !dayDoses.some(
+              (dose) =>
+                dose.medicationId === medication.id &&
+                dose.taken &&
+                dose.scheduledTime === time
+            )
+        ) ?? medication.times[0];
+
+      const timestamp = (() => {
+        const result = new Date(selectedDate);
+        if (nextTime) {
+          const [hours, minutes] = nextTime.split(":").map(Number);
+          result.setHours(hours, minutes, 0, 0);
+        } else {
+          result.setHours(new Date().getHours(), new Date().getMinutes(), 0, 0);
+        }
+        return result.toISOString();
+      })();
 
       return (
         <View key={medication.id} style={styles.medicationCard}>
@@ -130,12 +163,12 @@ export default function CalendarScreen() {
           <View style={styles.medicationInfo}>
             <Text style={styles.medicationName}>{medication.name}</Text>
             <Text style={styles.medicationDosage}>{medication.dosage}</Text>
-            <Text style={styles.medicationTime}>{medication.times[0]}</Text>
+            <Text style={styles.medicationTime}>{scheduledTimes.join(" · ")}</Text>
           </View>
-          {taken ? (
+          {allTaken ? (
             <View style={styles.takenBadge}>
               <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-              <Text style={styles.takenText}>Taken</Text>
+              <Text style={styles.takenText}>Taken {takenCount}</Text>
             </View>
           ) : (
             <TouchableOpacity
@@ -144,7 +177,7 @@ export default function CalendarScreen() {
                 { backgroundColor: medication.color },
               ]}
               onPress={async () => {
-                await recordDose(medication.id, true, new Date().toISOString());
+                await recordDose(medication.id, true, timestamp, nextTime);
                 loadData();
               }}
             >
@@ -159,7 +192,7 @@ export default function CalendarScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={["#1a8e2d", "#146922"]}
+        colors={["#8ca6d8", "#627fb5"]}
         style={styles.headerGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
@@ -243,7 +276,7 @@ export default function CalendarScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: SkeuoTheme.colors.pageBackground,
   },
   headerGradient: {
     position: "absolute",
@@ -267,7 +300,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "white",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
@@ -283,13 +318,15 @@ const styles = StyleSheet.create({
     marginLeft: 15,
   },
   calendarContainer: {
-    backgroundColor: "white",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
     borderRadius: 16,
     margin: 20,
     padding: 15,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    shadowColor: "#8e9ab0",
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 2,
   },
@@ -349,7 +386,7 @@ const styles = StyleSheet.create({
   },
   scheduleContainer: {
     flex: 1,
-    backgroundColor: "white",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
@@ -368,15 +405,15 @@ const styles = StyleSheet.create({
   medicationCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "white",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
     borderRadius: 16,
     padding: 15,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    borderColor: SkeuoTheme.colors.border,
+    shadowColor: "#8e9ab0",
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 2,
   },

@@ -1,6 +1,5 @@
 // splash screen
-import { View, Text, StyleSheet, Animated } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { View, StyleSheet, Animated, Image } from "react-native";
 import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 
@@ -42,8 +41,16 @@ export default function SplashScreen() {
           },
         ]}
       >
-        <Ionicons name="medical" size={100} color="white" />
-        <Text style={styles.appName}>MedRemind</Text>
+        <Image
+          source={require("../assets/images/splash_logo.png")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+        <Image
+          source={require("../assets/images/title.png")}
+          style={styles.title}
+          resizeMode="contain"
+        />
       </Animated.View>
     </View>
   );
@@ -59,11 +66,13 @@ const styles = StyleSheet.create({
   iconContainer: {
     alignItems: "center",
   },
-  appName: {
-    color: "white",
-    fontSize: 32,
-    fontWeight: "bold",
-    marginTop: 20,
-    letterSpacing: 1,
+  logo: {
+    width: 190,
+    height: 130,
+  },
+  title: {
+    width: 220,
+    height: 74,
+    marginTop: 4,
   },
 });

@@ -24,6 +24,7 @@ export interface DoseHistory {
   medicationId: string;
   timestamp: string;
   taken: boolean;
+  scheduledTime?: string;
 }
 
 export async function getMedications(): Promise<Medication[]> {
@@ -105,7 +106,8 @@ export async function getTodaysDoses(): Promise<DoseHistory[]> {
 export async function recordDose(
   medicationId: string,
   taken: boolean,
-  timestamp: string
+  timestamp: string,
+  scheduledTime?: string
 ): Promise<void> {
   try {
     const history = await getDoseHistory();
@@ -114,6 +116,7 @@ export async function recordDose(
       medicationId,
       timestamp,
       taken,
+      scheduledTime,
     };
 
     history.push(newDose);

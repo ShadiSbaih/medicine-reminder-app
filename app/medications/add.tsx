@@ -1,25 +1,26 @@
-import { useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  Switch,
-  Dimensions,
-  Platform,
-  Alert,
-} from "react-native";
-import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
-import { addMedication } from "../../utils/storage";
+import { useRouter } from "expo-router";
+import { useState } from "react";
 import {
-  scheduleMedicationReminder,
-  scheduleRefillReminder,
+    Alert,
+    Dimensions,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { SkeuoTheme } from "../../constants/theme";
+import {
+    scheduleMedicationReminder,
+    scheduleRefillReminder,
 } from "../../utils/notifications";
+import { addMedication } from "../../utils/storage";
 
 const { width } = Dimensions.get("window");
 
@@ -80,6 +81,7 @@ export default function AddMedicationScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedFrequency, setSelectedFrequency] = useState("");
   const [selectedDuration, setSelectedDuration] = useState("");
+  const [selectedTimeIndex, setSelectedTimeIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const validateForm = () => {
@@ -109,7 +111,16 @@ export default function AddMedicationScreen() {
       if (!form.refillAt) {
         newErrors.refillAt = "Refill alert threshold is required";
       }
-      if (Number(form.refillAt) >= Number(form.currentSupply)) {
+      if (Number(form.currentSupply) <= 0) {
+        newErrors.currentSupply = "Current supply must be greater than zero";
+      }
+      if (Number(form.refillAt) < 0) {
+        newErrors.refillAt = "Refill alert must be zero or greater";
+      }
+      if (
+        Number(form.currentSupply) > 0 &&
+        Number(form.refillAt) >= Number(form.currentSupply)
+      ) {
         newErrors.refillAt = "Refill alert must be less than current supply";
       }
     }
@@ -208,8 +219,7 @@ export default function AddMedicationScreen() {
               selectedFrequency === freq.label && styles.selectedOptionCard,
             ]}
             onPress={() => {
-              setSelectedFrequency(freq.label);
-              setForm({ ...form, frequency: freq.label });
+              handleFrequencySelect(freq.label);
             }}
           >
             <View
@@ -249,8 +259,7 @@ export default function AddMedicationScreen() {
               selectedDuration === dur.label && styles.selectedOptionCard,
             ]}
             onPress={() => {
-              setSelectedDuration(dur.label);
-              setForm({ ...form, duration: dur.label });
+              handleDurationSelect(dur.label);
             }}
           >
             <Text
@@ -278,7 +287,7 @@ export default function AddMedicationScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={["#1a8e2d", "#146922"]}
+        colors={["#8ca6d8", "#627fb5"]}
         style={styles.headerGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
@@ -384,6 +393,7 @@ export default function AddMedicationScreen() {
                     key={index}
                     style={styles.timeButton}
                     onPress={() => {
+                      setSelectedTimeIndex(index);
                       setShowTimePicker(true);
                     }}
                   >
@@ -400,7 +410,9 @@ export default function AddMedicationScreen() {
             {showTimePicker && (
               <DateTimePicker
                 value={(() => {
-                  const [hours, minutes] = form.times[0].split(":").map(Number);
+                  const [hours, minutes] = form.times[selectedTimeIndex]
+                    .split(":")
+                    .map(Number);
                   const date = new Date();
                   date.setHours(hours, minutes, 0, 0);
                   return date;
@@ -416,7 +428,9 @@ export default function AddMedicationScreen() {
                     });
                     setForm((prev) => ({
                       ...prev,
-                      times: prev.times.map((t, i) => (i === 0 ? newTime : t)),
+                      times: prev.times.map((t, i) =>
+                        i === selectedTimeIndex ? newTime : t
+                      ),
                     }));
                   }
                 }}
@@ -435,7 +449,7 @@ export default function AddMedicationScreen() {
                   <View>
                     <Text style={styles.switchLabel}>Reminders</Text>
                     <Text style={styles.switchSubLabel}>
-                      Get notified when it's time to take your medication
+                      Get notified when it&apos;s time to take your medication
                     </Text>
                   </View>
                 </View>
@@ -562,7 +576,7 @@ export default function AddMedicationScreen() {
             disabled={isSubmitting}
           >
             <LinearGradient
-              colors={["#1a8e2d", "#146922"]}
+              colors={["#4f78c2", "#355b9f"]}
               style={styles.saveButtonGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
@@ -588,7 +602,7 @@ export default function AddMedicationScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: SkeuoTheme.colors.pageBackground,
   },
   headerGradient: {
     position: "absolute",
@@ -612,12 +626,14 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "white",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    shadowColor: "#8e9ab0",
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
   },
@@ -655,22 +671,22 @@ const styles = StyleSheet.create({
   },
   optionCard: {
     width: (width - 60) / 2,
-    backgroundColor: "white",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
     borderRadius: 16,
     padding: 15,
     margin: 5,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#e0e0e0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    borderColor: SkeuoTheme.colors.border,
+    shadowColor: "#8e9ab0",
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 2,
   },
   selectedOptionCard: {
-    backgroundColor: "#1a8e2d",
-    borderColor: "#1a8e2d",
+    backgroundColor: SkeuoTheme.colors.accent,
+    borderColor: SkeuoTheme.colors.accent,
   },
   optionIcon: {
     width: 50,
@@ -703,29 +719,29 @@ const styles = StyleSheet.create({
     color: "white",
   },
   inputContainer: {
-    backgroundColor: "white",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
     borderRadius: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    borderColor: SkeuoTheme.colors.border,
+    shadowColor: "#8e9ab0",
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 2,
   },
   dateButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "white",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
     borderRadius: 16,
     padding: 15,
     marginTop: 15,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    borderColor: SkeuoTheme.colors.border,
+    shadowColor: "#8e9ab0",
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 2,
   },
@@ -744,14 +760,14 @@ const styles = StyleSheet.create({
     color: "#333",
   },
   card: {
-    backgroundColor: "white",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    borderColor: SkeuoTheme.colors.border,
+    shadowColor: "#8e9ab0",
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 2,
   },
@@ -798,13 +814,13 @@ const styles = StyleSheet.create({
     color: "#333",
   },
   textAreaContainer: {
-    backgroundColor: "white",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    borderColor: SkeuoTheme.colors.border,
+    shadowColor: "#8e9ab0",
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 2,
   },
@@ -816,7 +832,7 @@ const styles = StyleSheet.create({
   },
   footer: {
     padding: 20,
-    backgroundColor: "white",
+    backgroundColor: SkeuoTheme.colors.pageBackground,
     borderTopWidth: 1,
     borderTopColor: "#e0e0e0",
   },
@@ -839,10 +855,10 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: SkeuoTheme.colors.border,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "white",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
   },
   cancelButtonText: {
     color: "#666",
@@ -876,15 +892,15 @@ const styles = StyleSheet.create({
   timeButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "white",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
     borderRadius: 16,
     padding: 15,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    borderColor: SkeuoTheme.colors.border,
+    shadowColor: "#8e9ab0",
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 2,
   },

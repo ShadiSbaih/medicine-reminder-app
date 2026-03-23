@@ -1,23 +1,24 @@
-import React, { useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Platform,
-  Alert,
-} from "react-native";
-import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
-  getDoseHistory,
-  getMedications,
-  DoseHistory,
-  Medication,
-  clearAllData,
+    Alert,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { SkeuoTheme } from "../../constants/theme";
+import {
+    DoseHistory,
+    Medication,
+    clearAllData,
+    getDoseHistory,
+    getMedications,
 } from "../../utils/storage";
 
 type EnrichedDoseHistory = DoseHistory & { medication?: Medication };
@@ -54,8 +55,8 @@ export default function HistoryScreen() {
     }, [loadHistory])
   );
 
-  const groupHistoryByDate = () => {
-    const grouped = history.reduce((acc, dose) => {
+  const groupHistoryByDate = (source: EnrichedDoseHistory[]) => {
+    const grouped = source.reduce((acc, dose) => {
       const date = new Date(dose.timestamp).toDateString();
       if (!acc[date]) {
         acc[date] = [];
@@ -76,7 +77,7 @@ export default function HistoryScreen() {
     return true;
   });
 
-  const groupedHistory = groupHistoryByDate();
+  const groupedHistory = groupHistoryByDate(filteredHistory);
 
   const handleClearAllData = () => {
     Alert.alert(
@@ -108,7 +109,7 @@ export default function HistoryScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={["#1a8e2d", "#146922"]}
+        colors={["#8ca6d8", "#627fb5"]}
         style={styles.headerGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
@@ -216,6 +217,11 @@ export default function HistoryScreen() {
                         minute: "2-digit",
                       })}
                     </Text>
+                    {dose.scheduledTime && (
+                      <Text style={styles.scheduledText}>
+                        Scheduled {dose.scheduledTime}
+                      </Text>
+                    )}
                   </View>
                   <View style={styles.statusContainer}>
                     {dose.taken ? (
@@ -275,7 +281,7 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: SkeuoTheme.colors.pageBackground,
   },
   headerGradient: {
     position: "absolute",
@@ -299,7 +305,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "white",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
@@ -317,7 +325,7 @@ const styles = StyleSheet.create({
   filtersContainer: {
     paddingHorizontal: 20,
     marginBottom: 20,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: SkeuoTheme.colors.pageBackground,
     paddingTop: 10,
   },
   filtersScroll: {
@@ -327,14 +335,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "white",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
     marginRight: 10,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: SkeuoTheme.colors.border,
   },
   filterButtonActive: {
-    backgroundColor: "#1a8e2d",
-    borderColor: "#1a8e2d",
+    backgroundColor: SkeuoTheme.colors.accent,
+    borderColor: SkeuoTheme.colors.accent,
   },
   filterText: {
     fontSize: 14,
@@ -347,7 +355,7 @@ const styles = StyleSheet.create({
   historyContainer: {
     flex: 1,
     paddingHorizontal: 20,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: SkeuoTheme.colors.pageBackground,
   },
   dateGroup: {
     marginBottom: 25,
@@ -361,15 +369,15 @@ const styles = StyleSheet.create({
   historyCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "white",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    borderColor: SkeuoTheme.colors.border,
+    shadowColor: "#8e9ab0",
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 2,
   },
@@ -396,6 +404,11 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 14,
     color: "#666",
+  },
+  scheduledText: {
+    fontSize: 12,
+    color: "#8a97ac",
+    marginTop: 2,
   },
   statusContainer: {
     alignItems: "flex-end",
