@@ -115,13 +115,9 @@ export default function AuthScreen() {
             />
           </View>
 
-          <Image
-            source={require("../assets/images/title.png")}
-            style={styles.titleImage}
-            resizeMode="contain"
-          />
+          <Text style={styles.brandName}>Pillora</Text>
           <Text style={styles.subtitle}>
-            Your Personal Medication Assistant
+            Your Personal Medication Tracker and Reminder App
           </Text>
         </Animated.View>
 
@@ -160,14 +156,16 @@ export default function AuthScreen() {
                   : "Enter PIN"}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={{ marginTop: 20 }}
-            onPress={() => router.push("/home")}
-          >
-            <Text style={{ marginTop: 12, color: SkeuoTheme.colors.accent }}>
-              Enter as Developer
-            </Text>
-          </TouchableOpacity>
+          {__DEV__ && (
+            <TouchableOpacity
+              style={{ marginTop: 20 }}
+              onPress={() => router.push("/home")}
+            >
+              <Text style={{ marginTop: 12, color: SkeuoTheme.colors.accent }}>
+                Enter as Developer
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {error && (
             <View style={styles.errorContainer}>
@@ -211,10 +209,12 @@ const styles = StyleSheet.create({
     width: 90,
     height: 90,
   },
-  titleImage: {
-    width: 220,
-    height: 74,
-    marginTop: 4,
+  brandName: {
+    marginTop: 6,
+    fontSize: 56,
+    fontWeight: "800",
+    color: "#123336",
+    letterSpacing: 0.2,
   },
   subtitle: {
     fontSize: 18,

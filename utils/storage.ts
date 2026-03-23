@@ -10,9 +10,11 @@ export interface Medication {
   id: string;
   name: string;
   dosage: string;
+  frequency: string;
   times: string[];
   startDate: string;
   duration: string;
+  notes?: string;
   color: string;
   reminderEnabled: boolean;
   currentSupply: number;
@@ -115,7 +117,7 @@ export async function recordDose(
   try {
     const history = await getDoseHistory();
     const newDose: DoseHistory = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`,
       medicationId,
       timestamp,
       taken,

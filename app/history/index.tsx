@@ -4,32 +4,38 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SkeuoTheme } from "../../constants/theme";
 import {
-    DoseHistory,
-    Medication,
-    clearAllData,
-    getDoseHistory,
-    getMedications,
+  DoseHistory,
+  Medication,
+  clearAllData,
+  getDoseHistory,
+  getMedications,
 } from "../../utils/storage";
 
 type EnrichedDoseHistory = DoseHistory & { medication?: Medication };
+type TimeFilter = "all" | "today" | "7d" | "30d";
 
 export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [history, setHistory] = useState<EnrichedDoseHistory[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<
     "all" | "taken" | "missed"
   >("all");
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const loadHistory = useCallback(async () => {
     try {
@@ -74,14 +80,60 @@ export default function HistoryScreen() {
     );
   };
 
-  const filteredHistory = history.filter((dose) => {
-    if (selectedFilter === "all") return true;
-    if (selectedFilter === "taken") return dose.taken;
-    if (selectedFilter === "missed") return !dose.taken;
-    return true;
-  });
+  const filteredHistory = history
+    .filter((dose) => {
+      const doseDate = new Date(dose.timestamp);
+      const now = new Date();
+      const startOfToday = new Date(now);
+      startOfToday.setHours(0, 0, 0, 0);
+      const sevenDaysAgo = new Date(startOfToday);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+      const thirtyDaysAgo = new Date(startOfToday);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
+
+      const isInTimeWindow =
+        timeFilter === "all"
+          ? true
+          : timeFilter === "today"
+            ? doseDate >= startOfToday
+            : timeFilter === "7d"
+              ? doseDate >= sevenDaysAgo
+              : doseDate >= thirtyDaysAgo;
+
+      if (!isInTimeWindow) return false;
+
+      if (selectedFilter === "all") return true;
+      if (selectedFilter === "taken") return dose.taken;
+      if (selectedFilter === "missed") return !dose.taken;
+      return true;
+    })
+    .filter((dose) => {
+      const query = searchQuery.trim().toLowerCase();
+      if (!query) return true;
+
+      const name = dose.medication?.name?.toLowerCase() ?? "";
+      const dosage = dose.medication?.dosage?.toLowerCase() ?? "";
+      const scheduled = dose.scheduledTime?.toLowerCase() ?? "";
+      return (
+        name.includes(query) ||
+        dosage.includes(query) ||
+        scheduled.includes(query)
+      );
+    });
 
   const groupedHistory = groupHistoryByDate(filteredHistory);
+  const totalCount = filteredHistory.length;
+  const takenCount = filteredHistory.filter((dose) => dose.taken).length;
+  const missedCount = totalCount - takenCount;
+
+  const handleRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      await loadHistory();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadHistory]);
 
   const handleClearAllData = () => {
     Alert.alert(
@@ -193,12 +245,111 @@ export default function HistoryScreen() {
               </Text>
             </TouchableOpacity>
           </ScrollView>
+
+          <View style={styles.searchRow}>
+            <View style={styles.searchInputWrapper}>
+              <Ionicons
+                name="search-outline"
+                size={18}
+                color={SkeuoTheme.colors.textSecondary}
+              />
+              <TextInput
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search by medication or dosage"
+                placeholderTextColor={SkeuoTheme.colors.textTertiary}
+                style={styles.searchInput}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery("")}>
+                  <Ionicons
+                    name="close-circle"
+                    size={18}
+                    color={SkeuoTheme.colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {[
+              { key: "all", label: "All Time" },
+              { key: "today", label: "Today" },
+              { key: "7d", label: "7 Days" },
+              { key: "30d", label: "30 Days" },
+            ].map((item) => (
+              <TouchableOpacity
+                key={item.key}
+                style={[
+                  styles.timeChip,
+                  timeFilter === item.key && styles.timeChipActive,
+                ]}
+                onPress={() => setTimeFilter(item.key as TimeFilter)}
+              >
+                <Text
+                  style={[
+                    styles.timeChipText,
+                    timeFilter === item.key && styles.timeChipTextActive,
+                  ]}
+                >
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        <View style={styles.summaryContainer}>
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryValue}>{totalCount}</Text>
+            <Text style={styles.summaryLabel}>Total</Text>
+          </View>
+          <View style={[styles.summaryCard, styles.summaryCardTaken]}>
+            <Text style={[styles.summaryValue, styles.summaryValueTaken]}>
+              {takenCount}
+            </Text>
+            <Text style={[styles.summaryLabel, styles.summaryLabelTaken]}>
+              Taken
+            </Text>
+          </View>
+          <View style={[styles.summaryCard, styles.summaryCardMissed]}>
+            <Text style={[styles.summaryValue, styles.summaryValueMissed]}>
+              {missedCount}
+            </Text>
+            <Text style={[styles.summaryLabel, styles.summaryLabelMissed]}>
+              Missed
+            </Text>
+          </View>
         </View>
 
         <ScrollView
           style={styles.historyContainer}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={SkeuoTheme.colors.accent}
+            />
+          }
         >
+          {groupedHistory.length === 0 && (
+            <View style={styles.emptyState}>
+              <Ionicons
+                name="document-text-outline"
+                size={48}
+                color={SkeuoTheme.colors.textTertiary}
+              />
+              <Text style={styles.emptyStateTitle}>No history found</Text>
+              <Text style={styles.emptyStateMessage}>
+                {selectedFilter === "all" && !searchQuery
+                  ? "Your dose activity will appear here once you start logging medications."
+                  : "No records match your current filters."}
+              </Text>
+            </View>
+          )}
+
           {groupedHistory.map(([date, doses]) => (
             <View key={date} style={styles.dateGroup}>
               <Text style={styles.dateHeader}>
@@ -355,7 +506,7 @@ const styles = StyleSheet.create({
   },
   filtersContainer: {
     paddingHorizontal: 20,
-    marginBottom: 20,
+    marginBottom: 12,
     backgroundColor: SkeuoTheme.colors.pageBackground,
     paddingTop: 10,
   },
@@ -383,10 +534,118 @@ const styles = StyleSheet.create({
   filterTextActive: {
     color: "white",
   },
+  searchRow: {
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  searchInputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 46,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: SkeuoTheme.colors.textPrimary,
+  },
+  timeChip: {
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    marginRight: 8,
+    marginBottom: 2,
+  },
+  timeChipActive: {
+    backgroundColor: SkeuoTheme.colors.accent,
+    borderColor: SkeuoTheme.colors.accent,
+  },
+  timeChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: SkeuoTheme.colors.textSecondary,
+  },
+  timeChipTextActive: {
+    color: SkeuoTheme.colors.white,
+  },
   historyContainer: {
     flex: 1,
     paddingHorizontal: 20,
     backgroundColor: SkeuoTheme.colors.pageBackground,
+  },
+  summaryContainer: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    gap: 10,
+    marginBottom: 14,
+  },
+  summaryCard: {
+    flex: 1,
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  summaryCardTaken: {
+    backgroundColor: SkeuoTheme.colors.successSurface,
+  },
+  summaryCardMissed: {
+    backgroundColor: SkeuoTheme.colors.dangerSurface,
+  },
+  summaryValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: SkeuoTheme.colors.textPrimary,
+  },
+  summaryValueTaken: {
+    color: SkeuoTheme.colors.success,
+  },
+  summaryValueMissed: {
+    color: SkeuoTheme.colors.danger,
+  },
+  summaryLabel: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: "600",
+    color: SkeuoTheme.colors.textSecondary,
+  },
+  summaryLabelTaken: {
+    color: SkeuoTheme.colors.success,
+  },
+  summaryLabelMissed: {
+    color: SkeuoTheme.colors.danger,
+  },
+  emptyState: {
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    padding: 24,
+    alignItems: "center",
+    marginBottom: 18,
+  },
+  emptyStateTitle: {
+    marginTop: 10,
+    fontSize: 18,
+    fontWeight: "700",
+    color: SkeuoTheme.colors.textPrimary,
+  },
+  emptyStateMessage: {
+    marginTop: 8,
+    fontSize: 14,
+    color: SkeuoTheme.colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
   },
   dateGroup: {
     marginBottom: 25,

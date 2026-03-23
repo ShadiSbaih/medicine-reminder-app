@@ -20,7 +20,7 @@ import Svg, { Circle } from "react-native-svg";
 import { SkeuoTheme } from "../constants/theme";
 import {
   registerForPushNotificationsAsync,
-  scheduleMedicationReminder,
+  updateMedicationReminders,
 } from "../utils/notifications";
 import {
   DoseHistory,
@@ -42,7 +42,7 @@ const QUICK_ACTIONS = [
   {
     icon: "add-circle-outline" as const,
     label: "Add\nMedication",
-    route: "/medications/add" as const,
+    route: "/medications" as const,
     color: "#20B486",
     gradient: ["#26C89A", "#117A66"] as [string, string],
   },
@@ -85,6 +85,21 @@ interface ScheduledDose {
 interface NotificationItem extends ScheduledDose {
   isRead: boolean;
   isOverdue: boolean;
+}
+
+function parseDurationDays(duration: string): number {
+  const normalized = duration.trim().toLowerCase();
+  if (normalized.includes("ongoing")) {
+    return -1;
+  }
+
+  const match = normalized.match(/-?\d+/);
+  if (!match) {
+    return -1;
+  }
+
+  const value = Number(match[0]);
+  return Number.isFinite(value) ? value : -1;
 }
 
 function CircularProgress({
@@ -168,7 +183,7 @@ export default function HomeScreen() {
       const today = new Date();
       const todayMeds = allMedications.filter((med) => {
         const startDate = new Date(med.startDate);
-        const durationDays = parseInt(med.duration.split(" ")[0]);
+        const durationDays = parseDurationDays(med.duration);
 
         // For ongoing medications or if within duration
         if (
@@ -228,8 +243,8 @@ export default function HomeScreen() {
       // Schedule reminders for all medications
       const medications = await getMedications();
       for (const medication of medications) {
-        if (medication.reminderEnabled) {
-          await scheduleMedicationReminder(medication);
+        if (medication.reminderEnabled || medication.refillReminder) {
+          await updateMedicationReminders(medication);
         }
       }
     } catch (error) {

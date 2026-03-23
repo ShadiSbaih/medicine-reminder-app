@@ -1,11 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Dimensions,
+  Modal,
   ScrollView,
   StyleSheet,
   Switch,
@@ -17,10 +18,15 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SkeuoTheme } from "../../constants/theme";
 import {
-  scheduleMedicationReminder,
-  scheduleRefillReminder,
+  cancelMedicationReminders,
+  updateMedicationReminders,
 } from "../../utils/notifications";
-import { addMedication } from "../../utils/storage";
+import {
+  addMedication,
+  deleteMedication,
+  getMedications,
+  updateMedication,
+} from "../../utils/storage";
 
 const { width } = Dimensions.get("window");
 
@@ -63,6 +69,8 @@ const DURATIONS = [
 export default function AddMedicationScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { medicationId } = useLocalSearchParams<{ medicationId?: string }>();
+  const isEditMode = Boolean(medicationId);
   const [form, setForm] = useState({
     name: "",
     dosage: "",
@@ -84,6 +92,57 @@ export default function AddMedicationScreen() {
   const [selectedDuration, setSelectedDuration] = useState("");
   const [selectedTimeIndex, setSelectedTimeIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [validationIssues, setValidationIssues] = useState<string[]>([]);
+  const [showValidationModal, setShowValidationModal] = useState(false);
+  const [loadedMedicationColor, setLoadedMedicationColor] = useState("#2DB19A");
+  const [loadedTotalSupply, setLoadedTotalSupply] = useState(0);
+
+  useEffect(() => {
+    if (!isEditMode || !medicationId) return;
+
+    const loadMedicationForEdit = async () => {
+      const medications = await getMedications();
+      const existing = medications.find((med) => med.id === medicationId);
+      if (!existing) {
+        Alert.alert("Not found", "Medication was not found.", [
+          { text: "OK", onPress: () => router.back() },
+        ]);
+        return;
+      }
+
+      setLoadedMedicationColor(existing.color || "#2DB19A");
+      setLoadedTotalSupply(existing.totalSupply || existing.currentSupply || 0);
+      setForm({
+        name: existing.name,
+        dosage: existing.dosage,
+        frequency: existing.frequency,
+        duration: existing.duration,
+        startDate: new Date(existing.startDate),
+        times: existing.times?.length ? existing.times : ["09:00"],
+        notes: existing.notes || "",
+        reminderEnabled: existing.reminderEnabled,
+        refillReminder: existing.refillReminder,
+        currentSupply:
+          typeof existing.currentSupply === "number"
+            ? String(existing.currentSupply)
+            : "",
+        refillAt:
+          typeof existing.refillAt === "number"
+            ? String(existing.refillAt)
+            : "",
+      });
+      setSelectedFrequency(existing.frequency || "");
+      setSelectedDuration(existing.duration || "");
+    };
+
+    loadMedicationForEdit();
+  }, [isEditMode, medicationId, router]);
+
+  const buildValidationIssues = (newErrors: { [key: string]: string }) => {
+    const entries = Object.entries(newErrors);
+    if (entries.length === 0) return [];
+    return entries.map(([, value]) => value);
+  };
 
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {};
@@ -127,13 +186,15 @@ export default function AddMedicationScreen() {
     }
 
     setErrors(newErrors);
+    const issues = buildValidationIssues(newErrors);
+    setValidationIssues(issues);
+    setShowValidationModal(issues.length > 0);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSave = async () => {
     try {
       if (!validateForm()) {
-        Alert.alert("Error", "Please fill in all required fields correctly");
         return;
       }
 
@@ -145,28 +206,42 @@ export default function AddMedicationScreen() {
       const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
       const medicationData = {
-        id: Math.random().toString(36).substr(2, 9),
+        id:
+          (isEditMode && medicationId) ||
+          `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`,
         ...form,
         currentSupply: form.currentSupply ? Number(form.currentSupply) : 0,
-        totalSupply: form.currentSupply ? Number(form.currentSupply) : 0,
+        totalSupply: isEditMode
+          ? Math.max(
+              loadedTotalSupply,
+              form.currentSupply ? Number(form.currentSupply) : 0,
+            )
+          : form.currentSupply
+            ? Number(form.currentSupply)
+            : 0,
         refillAt: form.refillAt ? Number(form.refillAt) : 0,
         startDate: form.startDate.toISOString(),
-        color: randomColor,
+        color: isEditMode ? loadedMedicationColor : randomColor,
       };
 
-      await addMedication(medicationData);
-
-      // Schedule reminders if enabled
-      if (medicationData.reminderEnabled) {
-        await scheduleMedicationReminder(medicationData);
+      if (isEditMode) {
+        await updateMedication(medicationData);
+      } else {
+        await addMedication(medicationData);
       }
-      if (medicationData.refillReminder) {
-        await scheduleRefillReminder(medicationData);
+
+      // Schedule reminders with deduplication safety
+      if (medicationData.reminderEnabled || medicationData.refillReminder) {
+        await updateMedicationReminders(medicationData);
+      } else if (isEditMode) {
+        await cancelMedicationReminders(medicationData.id);
       }
 
       Alert.alert(
         "Success",
-        "Medication added successfully",
+        isEditMode
+          ? "Medication updated successfully"
+          : "Medication added successfully",
         [
           {
             text: "OK",
@@ -207,6 +282,34 @@ export default function AddMedicationScreen() {
     if (errors.duration) {
       setErrors((prev) => ({ ...prev, duration: "" }));
     }
+  };
+
+  const handleDeleteMedication = () => {
+    if (!isEditMode || !medicationId) return;
+
+    Alert.alert(
+      "Delete Medication",
+      "Are you sure you want to delete this medication?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await cancelMedicationReminders(medicationId);
+              await deleteMedication(medicationId);
+              Alert.alert("Deleted", "Medication deleted successfully", [
+                { text: "OK", onPress: () => router.replace("/medications") },
+              ]);
+            } catch (error) {
+              console.error("Delete error:", error);
+              Alert.alert("Error", "Failed to delete medication.");
+            }
+          },
+        },
+      ],
+    );
   };
 
   const renderFrequencyOptions = () => {
@@ -314,7 +417,9 @@ export default function AddMedicationScreen() {
               color={SkeuoTheme.colors.accentDark}
             />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>New Medication</Text>
+          <Text style={styles.headerTitle}>
+            {isEditMode ? "Edit Medication" : "New Medication"}
+          </Text>
         </View>
 
         <ScrollView
@@ -479,7 +584,7 @@ export default function AddMedicationScreen() {
                       color={SkeuoTheme.colors.accentDark}
                     />
                   </View>
-                  <View>
+                  <View style={styles.switchTextContainer}>
                     <Text style={styles.switchLabel}>Reminders</Text>
                     <Text style={styles.switchSubLabel}>
                       Get notified when it&apos;s time to take your medication
@@ -487,6 +592,7 @@ export default function AddMedicationScreen() {
                   </View>
                 </View>
                 <Switch
+                  style={styles.switchControl}
                   value={form.reminderEnabled}
                   onValueChange={(value) =>
                     setForm({ ...form, reminderEnabled: value })
@@ -513,7 +619,7 @@ export default function AddMedicationScreen() {
                       color={SkeuoTheme.colors.accentDark}
                     />
                   </View>
-                  <View>
+                  <View style={styles.switchTextContainer}>
                     <Text style={styles.switchLabel}>Refill Tracking</Text>
                     <Text style={styles.switchSubLabel}>
                       Get notified when you need to refill
@@ -521,6 +627,7 @@ export default function AddMedicationScreen() {
                   </View>
                 </View>
                 <Switch
+                  style={styles.switchControl}
                   value={form.refillReminder}
                   onValueChange={(value) => {
                     setForm({ ...form, refillReminder: value });
@@ -628,10 +735,34 @@ export default function AddMedicationScreen() {
               end={{ x: 1, y: 0 }}
             >
               <Text style={styles.saveButtonText}>
-                {isSubmitting ? "Adding..." : "Add Medication"}
+                {isSubmitting
+                  ? isEditMode
+                    ? "Saving..."
+                    : "Adding..."
+                  : isEditMode
+                    ? "Save Changes"
+                    : "Add Medication"}
               </Text>
             </LinearGradient>
           </TouchableOpacity>
+
+          {isEditMode && (
+            <TouchableOpacity
+              style={styles.deleteFooterButton}
+              onPress={handleDeleteMedication}
+              disabled={isSubmitting}
+            >
+              <Ionicons
+                name="trash-outline"
+                size={18}
+                color={SkeuoTheme.colors.danger}
+              />
+              <Text style={styles.deleteFooterButtonText}>
+                Delete Medication
+              </Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={styles.cancelButton}
             onPress={() => router.back()}
@@ -641,6 +772,51 @@ export default function AddMedicationScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      <Modal
+        transparent
+        visible={showValidationModal}
+        animationType="fade"
+        onRequestClose={() => setShowValidationModal(false)}
+      >
+        <View style={styles.validationOverlay}>
+          <View style={styles.validationModal}>
+            <View style={styles.validationHeader}>
+              <Ionicons
+                name="warning-outline"
+                size={22}
+                color={SkeuoTheme.colors.warning}
+              />
+              <Text style={styles.validationTitle}>
+                Please complete the form
+              </Text>
+            </View>
+            <Text style={styles.validationSubtitle}>
+              We found these missing or invalid fields:
+            </Text>
+
+            <View style={styles.validationList}>
+              {validationIssues.map((issue, index) => (
+                <View key={`${issue}-${index}`} style={styles.validationItem}>
+                  <Ionicons
+                    name="ellipse"
+                    size={8}
+                    color={SkeuoTheme.colors.textSecondary}
+                  />
+                  <Text style={styles.validationItemText}>{issue}</Text>
+                </View>
+              ))}
+            </View>
+
+            <TouchableOpacity
+              style={styles.validationButton}
+              onPress={() => setShowValidationModal(false)}
+            >
+              <Text style={styles.validationButtonText}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -827,6 +1003,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
+    minWidth: 0,
+  },
+  switchTextContainer: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 10,
+  },
+  switchControl: {
+    marginLeft: 8,
   },
   iconContainer: {
     width: 40,
@@ -846,6 +1031,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: SkeuoTheme.colors.textSecondary,
     marginTop: 2,
+    flexShrink: 1,
+    lineHeight: 18,
   },
   inputRow: {
     flexDirection: "row",
@@ -912,6 +1099,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
+  deleteFooterButton: {
+    marginBottom: 12,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.dangerBorder,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: SkeuoTheme.colors.dangerSurface,
+    flexDirection: "row",
+    gap: 8,
+  },
+  deleteFooterButtonText: {
+    color: SkeuoTheme.colors.danger,
+    fontSize: 15,
+    fontWeight: "700",
+  },
   inputError: {
     borderColor: SkeuoTheme.colors.danger,
   },
@@ -964,5 +1168,59 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: SkeuoTheme.colors.textPrimary,
+  },
+  validationOverlay: {
+    flex: 1,
+    backgroundColor: SkeuoTheme.colors.overlayDark,
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  validationModal: {
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    padding: 18,
+  },
+  validationHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  validationTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: SkeuoTheme.colors.textPrimary,
+  },
+  validationSubtitle: {
+    marginTop: 8,
+    color: SkeuoTheme.colors.textSecondary,
+    fontSize: 14,
+  },
+  validationList: {
+    marginTop: 12,
+    gap: 8,
+  },
+  validationItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  validationItemText: {
+    flex: 1,
+    color: SkeuoTheme.colors.textPrimary,
+    fontSize: 14,
+  },
+  validationButton: {
+    marginTop: 16,
+    backgroundColor: SkeuoTheme.colors.accent,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  validationButtonText: {
+    color: SkeuoTheme.colors.white,
+    fontWeight: "700",
+    fontSize: 15,
   },
 });
