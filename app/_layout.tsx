@@ -21,7 +21,7 @@ export default function Layout() {
           }}
         />
         <Stack.Screen
-          name="medications/add"
+          name="medications/index"
           options={{
             headerShown: false,
             headerBackTitle: "",
