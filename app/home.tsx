@@ -4,33 +4,33 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Link } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  Animated,
-  AppState,
-  Dimensions,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    Animated,
+    AppState,
+    Dimensions,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 import { SkeuoTheme } from "../constants/theme";
 import {
-  registerForPushNotificationsAsync,
-  updateMedicationReminders,
+    registerForPushNotificationsAsync,
+    updateMedicationReminders,
 } from "../utils/notifications";
 import {
-  DoseHistory,
-  getMedications,
-  getReadNotificationIds,
-  getTodaysDoses,
-  markNotificationAsRead,
-  markNotificationsAsRead,
-  Medication,
-  recordDose,
+    DoseHistory,
+    getMedications,
+    getReadNotificationIds,
+    getTodaysDoses,
+    markNotificationAsRead,
+    markNotificationsAsRead,
+    Medication,
+    recordDose,
 } from "../utils/storage";
 
 const { width } = Dimensions.get("window");
@@ -100,6 +100,30 @@ function parseDurationDays(duration: string): number {
 
   const value = Number(match[0]);
   return Number.isFinite(value) ? value : -1;
+}
+
+function startOfDay(date: Date): Date {
+  const value = new Date(date);
+  value.setHours(0, 0, 0, 0);
+  return value;
+}
+
+function isMedicationActiveOnDate(medication: Medication, date: Date): boolean {
+  const startDate = startOfDay(new Date(medication.startDate));
+  const targetDate = startOfDay(date);
+  const durationDays = parseDurationDays(medication.duration);
+
+  if (targetDate < startDate) {
+    return false;
+  }
+
+  if (durationDays === -1) {
+    return true;
+  }
+
+  const endDate = new Date(startDate);
+  endDate.setDate(endDate.getDate() + Math.max(durationDays - 1, 0));
+  return targetDate <= endDate;
 }
 
 function CircularProgress({
@@ -181,23 +205,9 @@ export default function HomeScreen() {
 
       // Filter medications for today
       const today = new Date();
-      const todayMeds = allMedications.filter((med) => {
-        const startDate = new Date(med.startDate);
-        const durationDays = parseDurationDays(med.duration);
-
-        // For ongoing medications or if within duration
-        if (
-          durationDays === -1 ||
-          (today >= startDate &&
-            today <=
-              new Date(
-                startDate.getTime() + durationDays * 24 * 60 * 60 * 1000,
-              ))
-        ) {
-          return true;
-        }
-        return false;
-      });
+      const todayMeds = allMedications.filter((med) =>
+        isMedicationActiveOnDate(med, today),
+      );
 
       const todaySchedule = todayMeds.flatMap((medication) => {
         if (!medication.times.length) {
@@ -356,6 +366,14 @@ export default function HomeScreen() {
 
   const notificationItems: NotificationItem[] = scheduledDosesSorted.map(
     (dose) => {
+      if (!dose.scheduledTime) {
+        return {
+          ...dose,
+          isRead: true,
+          isOverdue: false,
+        };
+      }
+
       const taken = isDoseTaken(dose.medication.id, dose.scheduledTime);
       const isOverdue =
         Boolean(dose.scheduledTime) &&
@@ -363,14 +381,14 @@ export default function HomeScreen() {
         timeToTodayDate(dose.scheduledTime as string) < now;
       return {
         ...dose,
-        isRead: readNotificationIds.includes(dose.id),
+        isRead: taken || readNotificationIds.includes(dose.id),
         isOverdue,
       };
     },
   );
 
   const unreadNotificationCount = notificationItems.filter(
-    (item) => !item.isRead,
+    (item) => !item.isRead && Boolean(item.scheduledTime),
   ).length;
 
   const handleMarkNotificationRead = async (notificationId: string) => {

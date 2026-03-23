@@ -4,28 +4,29 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  Alert,
-  Dimensions,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    Dimensions,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SkeuoTheme } from "../../constants/theme";
 import {
-  cancelMedicationReminders,
-  updateMedicationReminders,
+    cancelMedicationReminders,
+    sendMedicationAddedNotification,
+    updateMedicationReminders,
 } from "../../utils/notifications";
 import {
-  addMedication,
-  deleteMedication,
-  getMedications,
-  updateMedication,
+    addMedication,
+    deleteMedication,
+    getMedications,
+    updateMedication,
 } from "../../utils/storage";
 
 const { width } = Dimensions.get("window");
@@ -228,6 +229,7 @@ export default function AddMedicationScreen() {
         await updateMedication(medicationData);
       } else {
         await addMedication(medicationData);
+        await sendMedicationAddedNotification(medicationData);
       }
 
       // Schedule reminders with deduplication safety

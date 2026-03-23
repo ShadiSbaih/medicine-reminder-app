@@ -116,19 +116,53 @@ export async function recordDose(
 ): Promise<void> {
   try {
     const history = await getDoseHistory();
-    const newDose: DoseHistory = {
-      id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`,
-      medicationId,
-      timestamp,
-      taken,
-      scheduledTime,
-    };
+    let shouldDecrementSupply = false;
 
-    history.push(newDose);
+    // For scheduled doses, keep only one record per medication + time per day.
+    if (scheduledTime) {
+      const targetDate = new Date(timestamp).toDateString();
+      const existingIndex = history.findIndex(
+        (dose) =>
+          dose.medicationId === medicationId &&
+          dose.scheduledTime === scheduledTime &&
+          new Date(dose.timestamp).toDateString() === targetDate,
+      );
+
+      if (existingIndex >= 0) {
+        const previous = history[existingIndex];
+        history[existingIndex] = {
+          ...previous,
+          timestamp,
+          taken,
+        };
+        shouldDecrementSupply = taken && !previous.taken;
+      } else {
+        const newDose: DoseHistory = {
+          id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`,
+          medicationId,
+          timestamp,
+          taken,
+          scheduledTime,
+        };
+        history.push(newDose);
+        shouldDecrementSupply = taken;
+      }
+    } else {
+      const newDose: DoseHistory = {
+        id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`,
+        medicationId,
+        timestamp,
+        taken,
+        scheduledTime,
+      };
+      history.push(newDose);
+      shouldDecrementSupply = taken;
+    }
+
     await AsyncStorage.setItem(DOSE_HISTORY_KEY, JSON.stringify(history));
 
     // Update medication supply if taken
-    if (taken) {
+    if (shouldDecrementSupply) {
       const medications = await getMedications();
       const medication = medications.find((med) => med.id === medicationId);
       if (medication && medication.currentSupply > 0) {

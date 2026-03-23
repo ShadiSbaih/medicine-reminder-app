@@ -22,6 +22,45 @@ import {
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+function parseDurationDays(duration: string): number {
+  const normalized = duration.trim().toLowerCase();
+  if (normalized.includes("ongoing")) {
+    return -1;
+  }
+
+  const match = normalized.match(/-?\d+/);
+  if (!match) {
+    return -1;
+  }
+
+  const value = Number(match[0]);
+  return Number.isFinite(value) ? value : -1;
+}
+
+function startOfDay(date: Date): Date {
+  const value = new Date(date);
+  value.setHours(0, 0, 0, 0);
+  return value;
+}
+
+function isMedicationActiveOnDate(medication: Medication, date: Date): boolean {
+  const startDate = startOfDay(new Date(medication.startDate));
+  const targetDate = startOfDay(date);
+  const durationDays = parseDurationDays(medication.duration);
+
+  if (targetDate < startDate) {
+    return false;
+  }
+
+  if (durationDays === -1) {
+    return true;
+  }
+
+  const endDate = new Date(startDate);
+  endDate.setDate(endDate.getDate() + Math.max(durationDays - 1, 0));
+  return targetDate <= endDate;
+}
+
 export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -125,7 +164,11 @@ export default function CalendarScreen() {
       (dose) => new Date(dose.timestamp).toDateString() === dateStr,
     );
 
-    return medications.map((medication) => {
+    const activeMedications = medications.filter((medication) =>
+      isMedicationActiveOnDate(medication, selectedDate),
+    );
+
+    return activeMedications.map((medication) => {
       const scheduledTimes = medication.times.length
         ? medication.times
         : ["As needed"];

@@ -12,9 +12,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export async function registerForPushNotificationsAsync(): Promise<
-  string | null
-> {
+async function ensureNotificationPermissions(): Promise<boolean> {
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
 
@@ -23,7 +21,14 @@ export async function registerForPushNotificationsAsync(): Promise<
     finalStatus = status;
   }
 
-  if (finalStatus !== "granted") {
+  return finalStatus === "granted";
+}
+
+export async function registerForPushNotificationsAsync(): Promise<
+  string | null
+> {
+  const hasPermission = await ensureNotificationPermissions();
+  if (!hasPermission) {
     return null;
   }
 
@@ -44,14 +49,28 @@ export async function registerForPushNotificationsAsync(): Promise<
 }
 
 export async function scheduleMedicationReminder(
-  medication: Medication
+  medication: Medication,
 ): Promise<string | undefined> {
-  if (!medication.reminderEnabled) return;
+  if (!medication.reminderEnabled || medication.times.length === 0) return;
 
   try {
+    const hasPermission = await ensureNotificationPermissions();
+    if (!hasPermission) return;
+
     let latestIdentifier: string | undefined;
     for (const time of medication.times) {
       const [hours, minutes] = time.split(":").map(Number);
+      if (
+        !Number.isInteger(hours) ||
+        !Number.isInteger(minutes) ||
+        hours < 0 ||
+        hours > 23 ||
+        minutes < 0 ||
+        minutes > 59
+      ) {
+        continue;
+      }
+
       latestIdentifier = await Notifications.scheduleNotificationAsync({
         content: {
           title: "Medication Reminder",
@@ -73,20 +92,22 @@ export async function scheduleMedicationReminder(
 }
 
 export async function scheduleRefillReminder(
-  medication: Medication
+  medication: Medication,
 ): Promise<string | undefined> {
   if (!medication.refillReminder) return;
 
   try {
+    const hasPermission = await ensureNotificationPermissions();
+    if (!hasPermission) return;
+
     // Schedule a notification when supply is low
     if (medication.currentSupply <= medication.refillAt) {
-      const identifier = await Notifications.scheduleNotificationAsync({
+      const identifier = await Notifications.presentNotificationAsync({
         content: {
           title: "Refill Reminder",
           body: `Your ${medication.name} supply is running low. Current supply: ${medication.currentSupply}`,
           data: { medicationId: medication.id, type: "refill" },
         },
-        trigger: null, // Show immediately
       });
 
       return identifier;
@@ -98,7 +119,7 @@ export async function scheduleRefillReminder(
 }
 
 export async function cancelMedicationReminders(
-  medicationId: string
+  medicationId: string,
 ): Promise<void> {
   try {
     const scheduledNotifications =
@@ -110,7 +131,7 @@ export async function cancelMedicationReminders(
       } | null;
       if (data?.medicationId === medicationId) {
         await Notifications.cancelScheduledNotificationAsync(
-          notification.identifier
+          notification.identifier,
         );
       }
     }
@@ -120,9 +141,12 @@ export async function cancelMedicationReminders(
 }
 
 export async function updateMedicationReminders(
-  medication: Medication
+  medication: Medication,
 ): Promise<void> {
   try {
+    const initialized = await registerForPushNotificationsAsync();
+    if (!initialized) return;
+
     // Cancel existing reminders
     await cancelMedicationReminders(medication.id);
 
@@ -131,5 +155,25 @@ export async function updateMedicationReminders(
     await scheduleRefillReminder(medication);
   } catch (error) {
     console.error("Error updating medication reminders:", error);
+  }
+}
+
+export async function sendMedicationAddedNotification(
+  medication: Medication,
+): Promise<string | undefined> {
+  try {
+    const initialized = await registerForPushNotificationsAsync();
+    if (!initialized) return;
+
+    return await Notifications.presentNotificationAsync({
+      content: {
+        title: "Medication Added",
+        body: `${medication.name} (${medication.dosage}) was added successfully.`,
+        data: { medicationId: medication.id, type: "medication-added" },
+      },
+    });
+  } catch (error) {
+    console.error("Error sending medication added notification:", error);
+    return undefined;
   }
 }
