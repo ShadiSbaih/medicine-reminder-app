@@ -29,27 +29,22 @@ export const Colors = {
 
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: "system-ui",
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: "ui-serif",
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: "ui-rounded",
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: "ui-monospace",
+    sans: "Avenir Next",
+    serif: "Times New Roman",
+    rounded: "Avenir Next",
+    mono: "Courier",
   },
   default: {
-    sans: "normal",
+    sans: "sans-serif",
     serif: "serif",
-    rounded: "normal",
+    rounded: "sans-serif-medium",
     mono: "monospace",
   },
   web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded:
-      "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+    sans: "'Trebuchet MS', 'Gill Sans', 'Segoe UI', sans-serif",
+    serif: "'Palatino Linotype', 'Book Antiqua', Palatino, serif",
+    rounded: "'Trebuchet MS', 'Avenir Next', sans-serif",
+    mono: "Consolas, Monaco, 'Liberation Mono', monospace",
   },
 });
 
@@ -80,38 +75,38 @@ export const SkeuoTheme = {
     white: "#ffffff",
   },
   radius: {
-    sm: 10,
-    md: 16,
-    lg: 24,
+    sm: 12,
+    md: 18,
+    lg: 28,
     pill: 999,
   },
   spacing: {
-    xs: 6,
-    sm: 10,
-    md: 16,
-    lg: 22,
-    xl: 28,
+    xs: 8,
+    sm: 12,
+    md: 18,
+    lg: 24,
+    xl: 32,
   },
   shadow: {
     outer: {
-      shadowColor: "#8e9ab0",
-      shadowOffset: { width: 6, height: 6 },
-      shadowOpacity: 0.32,
-      shadowRadius: 10,
-      elevation: 8,
+      shadowColor: "#0e3b5a",
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.18,
+      shadowRadius: 16,
+      elevation: 10,
     },
     outerSoft: {
-      shadowColor: "#95a1b6",
-      shadowOffset: { width: 4, height: 4 },
-      shadowOpacity: 0.22,
-      shadowRadius: 8,
-      elevation: 5,
+      shadowColor: "#1d5478",
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.12,
+      shadowRadius: 12,
+      elevation: 6,
     },
     innerGlow: {
       shadowColor: "#ffffff",
-      shadowOffset: { width: -4, height: -4 },
-      shadowOpacity: 0.95,
-      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.7,
+      shadowRadius: 6,
       elevation: 0,
     },
   },

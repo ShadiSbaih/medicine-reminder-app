@@ -190,7 +190,7 @@ export default function HistoryScreen() {
           SkeuoTheme.colors.headerGradientStart,
           SkeuoTheme.colors.headerGradientEnd,
         ]}
-        style={[styles.headerGradient, { height: insets.top + 92 }]}
+        style={[styles.headerGradient, { height: insets.top + 220 }]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
       />
@@ -208,7 +208,17 @@ export default function HistoryScreen() {
               color={SkeuoTheme.colors.accentDark}
             />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>History Log</Text>
+          <View style={styles.headerTextWrap}>
+            <Text style={styles.headerKicker}>Adherence</Text>
+            <Text style={styles.headerTitle}>History Log</Text>
+          </View>
+        </View>
+
+        <View style={styles.analyticsBanner}>
+          <Text style={styles.analyticsTitle}>Adherence Insights</Text>
+          <Text style={styles.analyticsSubtitle}>
+            Filter by date, status, and medication to review trends
+          </Text>
         </View>
 
         <View style={styles.filtersContainer}>
@@ -499,7 +509,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 120,
+    height: 180,
   },
   content: {
     flex: 1,
@@ -509,9 +519,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
-    minHeight: 56,
-    paddingBottom: 20,
+    minHeight: 64,
+    paddingBottom: 14,
     zIndex: 1,
+  },
+  headerTextWrap: {
+    marginLeft: 14,
+  },
+  headerKicker: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   backButton: {
     width: 48,
@@ -522,31 +542,48 @@ const styles = StyleSheet.create({
     borderColor: SkeuoTheme.colors.border,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#5f807f",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...SkeuoTheme.shadow.outerSoft,
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: "700",
+    fontSize: 32,
+    fontWeight: "800",
     color: "white",
-    marginLeft: 15,
+  },
+  analyticsBanner: {
+    marginHorizontal: 20,
+    marginBottom: 12,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    ...SkeuoTheme.shadow.outerSoft,
+  },
+  analyticsTitle: {
+    color: SkeuoTheme.colors.textPrimary,
+    fontSize: 17,
+    fontWeight: "800",
+  },
+  analyticsSubtitle: {
+    marginTop: 4,
+    color: SkeuoTheme.colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
   },
   filtersContainer: {
     paddingHorizontal: 20,
-    marginBottom: 12,
+    marginBottom: 14,
     backgroundColor: SkeuoTheme.colors.pageBackground,
-    paddingTop: 10,
+    paddingTop: 0,
   },
   filtersScroll: {
     paddingRight: 20,
   },
   filterButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 14,
     backgroundColor: SkeuoTheme.colors.cardBackground,
     marginRight: 10,
     borderWidth: 1,
@@ -558,7 +595,7 @@ const styles = StyleSheet.create({
   },
   filterText: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
     color: SkeuoTheme.colors.textSecondary,
   },
   filterTextActive: {
@@ -574,9 +611,9 @@ const styles = StyleSheet.create({
     backgroundColor: SkeuoTheme.colors.cardBackground,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 46,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    minHeight: 50,
     gap: 8,
   },
   searchInput: {
@@ -588,9 +625,9 @@ const styles = StyleSheet.create({
     backgroundColor: SkeuoTheme.colors.cardBackground,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    borderRadius: 18,
+    borderRadius: 14,
     paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingVertical: 8,
     marginRight: 8,
     marginBottom: 2,
   },
@@ -600,7 +637,7 @@ const styles = StyleSheet.create({
   },
   timeChipText: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "700",
     color: SkeuoTheme.colors.textSecondary,
   },
   timeChipTextActive: {
@@ -614,17 +651,18 @@ const styles = StyleSheet.create({
   summaryContainer: {
     flexDirection: "row",
     paddingHorizontal: 20,
-    gap: 10,
+    gap: 8,
     marginBottom: 14,
   },
   summaryCard: {
     flex: 1,
     backgroundColor: SkeuoTheme.colors.cardBackground,
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    paddingVertical: 10,
+    paddingVertical: 12,
     alignItems: "center",
+    ...SkeuoTheme.shadow.outerSoft,
   },
   summaryCardTaken: {
     backgroundColor: SkeuoTheme.colors.successSurface,
@@ -636,8 +674,8 @@ const styles = StyleSheet.create({
     backgroundColor: SkeuoTheme.colors.neutralSurface,
   },
   summaryValue: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 19,
+    fontWeight: "800",
     color: SkeuoTheme.colors.textPrimary,
   },
   summaryValueTaken: {
@@ -651,9 +689,11 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     marginTop: 2,
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 11,
+    fontWeight: "700",
     color: SkeuoTheme.colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.25,
   },
   summaryLabelTaken: {
     color: SkeuoTheme.colors.success,
@@ -666,7 +706,7 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     backgroundColor: SkeuoTheme.colors.cardBackground,
-    borderRadius: 16,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
     padding: 24,
@@ -675,8 +715,8 @@ const styles = StyleSheet.create({
   },
   emptyStateTitle: {
     marginTop: 10,
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 20,
+    fontWeight: "800",
     color: SkeuoTheme.colors.textPrimary,
   },
   emptyStateMessage: {
@@ -713,8 +753,8 @@ const styles = StyleSheet.create({
     marginBottom: 25,
   },
   dateHeader: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 17,
+    fontWeight: "800",
     color: SkeuoTheme.colors.textSecondary,
     marginBottom: 12,
   },
@@ -722,21 +762,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: SkeuoTheme.colors.cardBackground,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 20,
+    padding: 14,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    shadowColor: "#5f807f",
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 2,
+    ...SkeuoTheme.shadow.outerSoft,
   },
   medicationColor: {
-    width: 12,
+    width: 14,
     height: 40,
-    borderRadius: 6,
+    borderRadius: 7,
     marginRight: 16,
   },
   medicationInfo: {
@@ -744,7 +780,7 @@ const styles = StyleSheet.create({
   },
   medicationName: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
     color: SkeuoTheme.colors.textPrimary,
     marginBottom: 4,
   },
@@ -777,9 +813,10 @@ const styles = StyleSheet.create({
     backgroundColor: SkeuoTheme.colors.dangerSurface,
     paddingVertical: 12,
     paddingHorizontal: 20,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.dangerBorder,
+    ...SkeuoTheme.shadow.outerSoft,
   },
   clearDataText: {
     color: SkeuoTheme.colors.danger,

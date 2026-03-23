@@ -4,11 +4,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SkeuoTheme } from "../../constants/theme";
@@ -25,6 +25,75 @@ const urgencyMeta = {
   soon: { color: SkeuoTheme.colors.warning, label: "Soon" },
   healthy: { color: SkeuoTheme.colors.success, label: "Healthy" },
 } as const;
+
+function RefillCard({ item }: { item: RefillInsight }) {
+  const progress =
+    item.totalSupply > 0
+      ? Math.max(0, Math.min(1, item.currentSupply / item.totalSupply))
+      : 0;
+
+  return (
+    <View style={styles.medicationCard}>
+      <View style={styles.cardHeader}>
+        <View style={styles.medTitleContainer}>
+          <View style={[styles.colorDot, { backgroundColor: item.color }]} />
+          <Text style={styles.medName} numberOfLines={1}>
+            {item.name}
+          </Text>
+        </View>
+        <View
+          style={[
+            styles.urgencyBadge,
+            {
+              backgroundColor: `${urgencyMeta[item.refillUrgency].color}1A`,
+              borderColor: `${urgencyMeta[item.refillUrgency].color}33`,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.urgencyText,
+              { color: urgencyMeta[item.refillUrgency].color },
+            ]}
+          >
+            {urgencyMeta[item.refillUrgency].label}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.cardBody}>
+        <View style={styles.statsRow}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{item.daysLeft}</Text>
+            <Text style={styles.statLabel}>Days Left</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statSubValue}>{item.currentSupply}</Text>
+            <Text style={styles.statLabel}>Pills Left</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statSubValue}>{item.dosesPerDay}</Text>
+            <Text style={styles.statLabel}>Per Day</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.progressContainer}>
+        <View style={styles.progressHeader}>
+          <Text style={styles.progressLabel}>Supply Status</Text>
+          <Text style={styles.refillAtText}>Refill at {item.refillAt}</Text>
+        </View>
+        <View style={styles.progressTrack}>
+          <View
+            style={[styles.progressFill, { width: `${progress * 100}%` }]}
+          />
+        </View>
+      </View>
+    </View>
+  );
+}
 
 export default function RefillsScreen() {
   const insets = useSafeAreaInsets();
@@ -83,11 +152,11 @@ export default function RefillsScreen() {
           SkeuoTheme.colors.headerGradientStart,
           SkeuoTheme.colors.headerGradientEnd,
         ]}
-        style={[styles.headerGradient, { height: insets.top + 96 }]}
+        style={[styles.headerGradient, { height: insets.top + 210 }]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
       />
-      <View style={[styles.content, { paddingTop: insets.top + 8 }]}>
+      <View style={[styles.content, { paddingTop: insets.top }]}>
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => router.back()}
@@ -96,108 +165,85 @@ export default function RefillsScreen() {
           >
             <Ionicons
               name="chevron-back"
-              size={28}
+              size={24}
               color={SkeuoTheme.colors.textPrimary}
             />
           </TouchableOpacity>
+        </View>
+        <View style={styles.titleContainer}>
+          <Text style={styles.titleKicker}>Inventory Management</Text>
           <Text style={styles.headerTitle}>Refill Tracker</Text>
         </View>
 
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryValue}>{criticalCount}</Text>
-            <Text style={styles.summaryLabel}>Critical</Text>
+        <View style={styles.dashboardWidget}>
+          <View style={styles.widgetHeader}>
+            <View style={styles.widgetIconContainer}>
+              <Ionicons
+                name="medical-outline"
+                size={20}
+                color={SkeuoTheme.colors.accent}
+              />
+            </View>
+            <View>
+              <Text style={styles.widgetTitle}>Inventory Status</Text>
+              <Text style={styles.widgetSubtitle}>Watch your thresholds</Text>
+            </View>
           </View>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryValue}>{soonCount}</Text>
-            <Text style={styles.summaryLabel}>Due Soon</Text>
-          </View>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryValue}>{insights.length}</Text>
-            <Text style={styles.summaryLabel}>Tracked</Text>
+
+          <View style={styles.widgetStats}>
+            <View style={styles.widgetStatBox}>
+              <Text
+                style={[
+                  styles.widgetStatValue,
+                  criticalCount > 0 && { color: SkeuoTheme.colors.danger },
+                ]}
+              >
+                {criticalCount}
+              </Text>
+              <Text style={styles.widgetStatLabel}>Critical</Text>
+            </View>
+            <View style={styles.widgetDivider} />
+            <View style={styles.widgetStatBox}>
+              <Text
+                style={[
+                  styles.widgetStatValue,
+                  soonCount > 0 && { color: SkeuoTheme.colors.warning },
+                ]}
+              >
+                {soonCount}
+              </Text>
+              <Text style={styles.widgetStatLabel}>Due Soon</Text>
+            </View>
+            <View style={styles.widgetDivider} />
+            <View style={styles.widgetStatBox}>
+              <Text style={styles.widgetStatValue}>{insights.length}</Text>
+              <Text style={styles.widgetStatLabel}>Tracking</Text>
+            </View>
           </View>
         </View>
 
-        <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.list}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContent}
+        >
           {insights.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Ionicons
-                name="cube-outline"
-                size={34}
-                color={SkeuoTheme.colors.textSecondary}
-              />
-              <Text style={styles.emptyTitle}>No inventory tracked yet</Text>
+              <View style={styles.emptyIconBackground}>
+                <Ionicons
+                  name="cube-outline"
+                  size={40}
+                  color={SkeuoTheme.colors.accent}
+                />
+              </View>
+              <Text style={styles.emptyTitle}>No inventory tracked</Text>
               <Text style={styles.emptyText}>
-                Enable refill tracking when adding a medication to see insights.
+                Enable refill tracking when adding a medication to see your
+                insights here.
               </Text>
             </View>
           ) : (
-            insights.map((item) => {
-              const progress =
-                item.totalSupply > 0
-                  ? Math.max(
-                      0,
-                      Math.min(1, item.currentSupply / item.totalSupply),
-                    )
-                  : 0;
-
-              return (
-                <View key={item.id} style={styles.medicationCard}>
-                  <View style={styles.cardTopRow}>
-                    <View style={styles.medMain}>
-                      <View
-                        style={[
-                          styles.colorDot,
-                          { backgroundColor: item.color },
-                        ]}
-                      />
-                      <View>
-                        <Text style={styles.medName}>{item.name}</Text>
-                        <Text style={styles.medSub}>
-                          {item.currentSupply} left · {item.dosesPerDay}/day
-                        </Text>
-                      </View>
-                    </View>
-                    <View
-                      style={[
-                        styles.urgencyBadge,
-                        {
-                          backgroundColor: `${urgencyMeta[item.refillUrgency].color}22`,
-                          borderColor: `${urgencyMeta[item.refillUrgency].color}66`,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.urgencyText,
-                          { color: urgencyMeta[item.refillUrgency].color },
-                        ]}
-                      >
-                        {urgencyMeta[item.refillUrgency].label}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.progressTrack}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        { width: `${progress * 100}%` },
-                      ]}
-                    />
-                  </View>
-
-                  <View style={styles.bottomRow}>
-                    <Text style={styles.daysLeft}>
-                      {item.daysLeft} days left
-                    </Text>
-                    <Text style={styles.refillAt}>
-                      Refill at {item.refillAt}
-                    </Text>
-                  </View>
-                </View>
-              );
-            })
+            insights.map((item) => <RefillCard key={item.id} item={item} />)
           )}
         </ScrollView>
       </View>
@@ -215,140 +261,161 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 130,
+    height: 180,
   },
   content: {
     flex: 1,
-    paddingTop: 0,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
-    minHeight: 56,
-    marginBottom: 18,
+    marginTop: 10,
+    marginBottom: 0,
   },
   backButton: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: SkeuoTheme.radius.pill,
     backgroundColor: SkeuoTheme.colors.cardBackground,
     alignItems: "center",
     justifyContent: "center",
+    ...SkeuoTheme.shadow.outerSoft,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    shadowColor: "#5f807f",
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.24,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: SkeuoTheme.colors.white,
-    marginLeft: 14,
-  },
-  summaryRow: {
-    flexDirection: "row",
+  titleContainer: {
     paddingHorizontal: 20,
-    gap: 10,
-  },
-  summaryCard: {
-    flex: 1,
-    backgroundColor: SkeuoTheme.colors.cardBackground,
-    borderRadius: SkeuoTheme.radius.md,
-    paddingVertical: 14,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: SkeuoTheme.colors.border,
-    shadowColor: "#5f807f",
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  summaryValue: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: SkeuoTheme.colors.textPrimary,
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: SkeuoTheme.colors.textSecondary,
+    marginBottom: 14,
     marginTop: 4,
   },
-  list: {
-    flex: 1,
-    marginTop: 14,
-    paddingHorizontal: 20,
+  titleKicker: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "rgba(255,255,255,0.88)",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    marginBottom: 4,
   },
-  emptyCard: {
-    marginTop: 30,
-    borderRadius: SkeuoTheme.radius.lg,
-    backgroundColor: SkeuoTheme.colors.cardBackground,
-    borderWidth: 1,
-    borderColor: SkeuoTheme.colors.border,
-    padding: 24,
-    alignItems: "center",
-    shadowColor: "#5f807f",
-    shadowOffset: { width: 5, height: 5 },
-    shadowOpacity: 0.24,
-    shadowRadius: 8,
-    elevation: 3,
+  headerTitle: {
+    fontSize: 36,
+    fontWeight: "800",
+    color: SkeuoTheme.colors.white,
+    letterSpacing: -0.7,
   },
-  emptyTitle: {
-    marginTop: 12,
-    fontSize: 18,
-    fontWeight: "700",
-    color: SkeuoTheme.colors.textPrimary,
-  },
-  emptyText: {
-    marginTop: 8,
-    fontSize: 14,
-    textAlign: "center",
-    color: SkeuoTheme.colors.textSecondary,
-  },
-  medicationCard: {
-    borderRadius: SkeuoTheme.radius.lg,
+
+  // Dashboard Widget Styles
+  dashboardWidget: {
+    marginHorizontal: 16,
+    marginBottom: 14,
+    borderRadius: 24,
     backgroundColor: SkeuoTheme.colors.cardBackground,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
     padding: 16,
-    marginBottom: 12,
-    shadowColor: "#5f807f",
-    shadowOffset: { width: 5, height: 5 },
-    shadowOpacity: 0.24,
-    shadowRadius: 8,
-    elevation: 3,
+    ...SkeuoTheme.shadow.outerSoft,
   },
-  cardTopRow: {
+  widgetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  widgetIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: `${SkeuoTheme.colors.accent}15`,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  widgetTitle: {
+    color: SkeuoTheme.colors.textPrimary,
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
+  widgetSubtitle: {
+    color: SkeuoTheme.colors.textSecondary,
+    fontSize: 13,
+    marginTop: 2,
+    fontWeight: "500",
+  },
+  widgetStats: {
+    flexDirection: "row",
+    backgroundColor: SkeuoTheme.colors.cardInset,
+    borderRadius: 14,
+    padding: 10,
+    alignItems: "center",
+  },
+  widgetStatBox: {
+    flex: 1,
+    alignItems: "center",
+  },
+  widgetDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: SkeuoTheme.colors.border,
+  },
+  widgetStatValue: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: SkeuoTheme.colors.textPrimary,
+  },
+  widgetStatLabel: {
+    fontSize: 12,
+    color: SkeuoTheme.colors.textSecondary,
+    marginTop: 4,
+    fontWeight: "600",
+  },
+
+  list: {
+    flex: 1,
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+    gap: 12,
+  },
+
+  // Refill Card Styles
+  medicationCard: {
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderRadius: 22,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    ...SkeuoTheme.shadow.outerSoft,
+  },
+  cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 14,
   },
-  medMain: {
+  medTitleContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    flex: 1,
+    marginRight: 12,
   },
   colorDot: {
-    width: 12,
-    height: 36,
-    borderRadius: 10,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    marginRight: 12,
+    borderWidth: 2,
+    borderColor: SkeuoTheme.colors.cardBackground,
+    ...SkeuoTheme.shadow.outerSoft,
   },
   medName: {
-    fontSize: 16,
+    fontSize: 19,
     fontWeight: "700",
     color: SkeuoTheme.colors.textPrimary,
-  },
-  medSub: {
-    marginTop: 2,
-    fontSize: 13,
-    color: SkeuoTheme.colors.textSecondary,
+    flex: 1,
   },
   urgencyBadge: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: SkeuoTheme.radius.pill,
     borderWidth: 1,
@@ -356,31 +423,116 @@ const styles = StyleSheet.create({
   urgencyText: {
     fontSize: 12,
     fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-  progressTrack: {
-    marginTop: 14,
-    height: 10,
-    borderRadius: SkeuoTheme.radius.pill,
+
+  cardBody: {
     backgroundColor: SkeuoTheme.colors.cardInset,
-    overflow: "hidden",
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 14,
   },
-  progressFill: {
-    height: "100%",
-    borderRadius: SkeuoTheme.radius.pill,
-    backgroundColor: SkeuoTheme.colors.accent,
-  },
-  bottomRow: {
-    marginTop: 10,
+  statsRow: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
   },
-  daysLeft: {
-    fontSize: 13,
-    fontWeight: "700",
+  statItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  statDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: SkeuoTheme.colors.border,
+  },
+  statValue: {
+    fontSize: 22,
+    fontWeight: "800",
     color: SkeuoTheme.colors.textPrimary,
   },
-  refillAt: {
-    fontSize: 13,
+  statSubValue: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: SkeuoTheme.colors.textPrimary,
+    marginTop: 6,
+  },
+  statLabel: {
+    fontSize: 12,
     color: SkeuoTheme.colors.textSecondary,
+    fontWeight: "600",
+    marginTop: 4,
+  },
+
+  progressContainer: {
+    gap: 8,
+  },
+  progressHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+  },
+  progressLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: SkeuoTheme.colors.textSecondary,
+  },
+  refillAtText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: SkeuoTheme.colors.accent,
+  },
+  progressTrack: {
+    height: 10,
+    backgroundColor: SkeuoTheme.colors.cardInset,
+    borderRadius: 5,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+  },
+  progressFill: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: SkeuoTheme.colors.accent,
+    borderRadius: 5,
+  },
+
+  // Empty State Styles
+  emptyCard: {
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderRadius: 22,
+    padding: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    minHeight: 240,
+    marginTop: 8,
+    ...SkeuoTheme.shadow.outerSoft,
+  },
+  emptyIconBackground: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: `${SkeuoTheme.colors.accent}15`,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: SkeuoTheme.colors.textPrimary,
+    marginBottom: 10,
+  },
+  emptyText: {
+    fontSize: 15,
+    color: SkeuoTheme.colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 22,
+    paddingHorizontal: 20,
   },
 });

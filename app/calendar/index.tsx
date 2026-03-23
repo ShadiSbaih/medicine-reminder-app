@@ -320,7 +320,7 @@ export default function CalendarScreen() {
           SkeuoTheme.colors.headerGradientStart,
           SkeuoTheme.colors.headerGradientEnd,
         ]}
-        style={[styles.headerGradient, { height: insets.top + 92 }]}
+        style={[styles.headerGradient, { height: insets.top + 220 }]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
       />
@@ -338,7 +338,10 @@ export default function CalendarScreen() {
               color={SkeuoTheme.colors.accentDark}
             />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Calendar</Text>
+          <View style={styles.headerTextWrap}>
+            <Text style={styles.headerKicker}>Planner</Text>
+            <Text style={styles.headerTitle}>Calendar</Text>
+          </View>
         </View>
 
         <View style={styles.calendarContainer}>
@@ -481,7 +484,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 120,
+    height: 180,
   },
   content: {
     flex: 1,
@@ -491,9 +494,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
-    minHeight: 56,
+    minHeight: 64,
     paddingBottom: 20,
     zIndex: 1,
+  },
+  headerTextWrap: {
+    marginLeft: 14,
+  },
+  headerKicker: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   backButton: {
     width: 48,
@@ -511,10 +524,9 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: "700",
     color: "white",
-    marginLeft: 15,
   },
   calendarContainer: {
     backgroundColor: SkeuoTheme.colors.cardBackground,

@@ -68,6 +68,23 @@ export default function MedicationsScreen() {
     });
   }, [medications, searchQuery, selectedFilter]);
 
+  const summary = useMemo(() => {
+    const active = medications.filter((medication) =>
+      isMedicationActiveOnDate(medication, new Date()),
+    ).length;
+    const lowStock = medications.filter(
+      (medication) =>
+        medication.refillReminder &&
+        medication.currentSupply <= medication.refillAt,
+    ).length;
+    return {
+      total: medications.length,
+      active,
+      lowStock,
+      visible: filteredMedications.length,
+    };
+  }, [filteredMedications.length, medications]);
+
   const handleDelete = (medication: Medication) => {
     Alert.alert(
       "Delete Medication",
@@ -98,7 +115,7 @@ export default function MedicationsScreen() {
           SkeuoTheme.colors.headerGradientStart,
           SkeuoTheme.colors.headerGradientEnd,
         ]}
-        style={[styles.headerGradient, { height: insets.top + 94 }]}
+        style={[styles.headerGradient, { height: insets.top + 220 }]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
       />
@@ -116,7 +133,31 @@ export default function MedicationsScreen() {
               color={SkeuoTheme.colors.accentDark}
             />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Medications</Text>
+          <View style={styles.headerTextWrap}>
+            <Text style={styles.headerKicker}>Medication Workspace</Text>
+            <Text style={styles.headerTitle}>Medications</Text>
+          </View>
+        </View>
+
+        <View style={styles.summaryPanel}>
+          <View style={styles.summaryPanelTop}>
+            <Text style={styles.summaryKicker}>Medication Center</Text>
+            <Text style={styles.summaryVisible}>{summary.visible} visible</Text>
+          </View>
+          <View style={styles.summaryGrid}>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryValue}>{summary.total}</Text>
+              <Text style={styles.summaryLabel}>Total</Text>
+            </View>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryValue}>{summary.active}</Text>
+              <Text style={styles.summaryLabel}>Active</Text>
+            </View>
+            <View style={styles.summaryItem}>
+              <Text style={styles.summaryValue}>{summary.lowStock}</Text>
+              <Text style={styles.summaryLabel}>Low Stock</Text>
+            </View>
+          </View>
         </View>
 
         <View style={styles.controlsContainer}>
@@ -144,32 +185,37 @@ export default function MedicationsScreen() {
             )}
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {[
-              { key: "all", label: "All" },
-              { key: "active", label: "Active" },
-              { key: "low-stock", label: "Low stock" },
-              { key: "reminders-off", label: "Reminders off" },
-            ].map((item) => (
-              <TouchableOpacity
-                key={item.key}
-                style={[
-                  styles.filterChip,
-                  selectedFilter === item.key && styles.filterChipActive,
-                ]}
-                onPress={() => setSelectedFilter(item.key as MedicationFilter)}
-              >
-                <Text
+          <View style={styles.filterPanel}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {[
+                { key: "all", label: "All" },
+                { key: "active", label: "Active" },
+                { key: "low-stock", label: "Low stock" },
+                { key: "reminders-off", label: "Reminders off" },
+              ].map((item) => (
+                <TouchableOpacity
+                  key={item.key}
                   style={[
-                    styles.filterChipText,
-                    selectedFilter === item.key && styles.filterChipTextActive,
+                    styles.filterChip,
+                    selectedFilter === item.key && styles.filterChipActive,
                   ]}
+                  onPress={() =>
+                    setSelectedFilter(item.key as MedicationFilter)
+                  }
                 >
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      selectedFilter === item.key &&
+                        styles.filterChipTextActive,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
         </View>
 
         <ScrollView
@@ -317,26 +363,29 @@ export default function MedicationsScreen() {
                     </View>
                   </View>
 
-                  <View style={styles.supplyHeaderRow}>
-                    <Text style={styles.supplyLabel}>
-                      Supply {medication.currentSupply}/{medication.totalSupply}
-                    </Text>
-                    {lowStock && (
-                      <Text style={styles.lowStockText}>Low stock</Text>
-                    )}
-                  </View>
-                  <View style={styles.supplyTrack}>
-                    <View
-                      style={[
-                        styles.supplyFill,
-                        {
-                          width: `${supplyPercent}%`,
-                          backgroundColor: lowStock
-                            ? SkeuoTheme.colors.danger
-                            : SkeuoTheme.colors.accent,
-                        },
-                      ]}
-                    />
+                  <View style={styles.supplyPanel}>
+                    <View style={styles.supplyHeaderRow}>
+                      <Text style={styles.supplyLabel}>
+                        Supply {medication.currentSupply}/
+                        {medication.totalSupply}
+                      </Text>
+                      {lowStock && (
+                        <Text style={styles.lowStockText}>Low stock</Text>
+                      )}
+                    </View>
+                    <View style={styles.supplyTrack}>
+                      <View
+                        style={[
+                          styles.supplyFill,
+                          {
+                            width: `${supplyPercent}%`,
+                            backgroundColor: lowStock
+                              ? SkeuoTheme.colors.danger
+                              : SkeuoTheme.colors.accent,
+                          },
+                        ]}
+                      />
+                    </View>
                   </View>
                 </View>
               );
@@ -370,9 +419,64 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  summaryPanel: {
+    marginHorizontal: 20,
+    marginBottom: 12,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    ...SkeuoTheme.shadow.outerSoft,
+  },
+  summaryPanelTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  summaryKicker: {
+    color: SkeuoTheme.colors.accentDark,
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  summaryVisible: {
+    color: SkeuoTheme.colors.textSecondary,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  summaryGrid: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  summaryItem: {
+    flex: 1,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    backgroundColor: SkeuoTheme.colors.neutralSurface,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  summaryValue: {
+    color: SkeuoTheme.colors.textPrimary,
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  summaryLabel: {
+    marginTop: 2,
+    color: SkeuoTheme.colors.textSecondary,
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
   controlsContainer: {
     paddingHorizontal: 20,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   searchInputWrapper: {
     flexDirection: "row",
@@ -380,23 +484,35 @@ const styles = StyleSheet.create({
     backgroundColor: SkeuoTheme.colors.cardBackground,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    marginBottom: 10,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+    minHeight: 50,
+  },
+  filterPanel: {
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    borderRadius: 16,
+    paddingVertical: 8,
+    paddingLeft: 8,
+    paddingRight: 2,
   },
   searchInput: {
     flex: 1,
     color: SkeuoTheme.colors.textPrimary,
-    paddingVertical: 10,
+    paddingVertical: 12,
     marginLeft: 8,
+    fontSize: 14,
+    fontWeight: "500",
   },
   filterChip: {
-    paddingVertical: 7,
-    paddingHorizontal: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    backgroundColor: SkeuoTheme.colors.cardBackground,
+    backgroundColor: SkeuoTheme.colors.neutralSurface,
     marginRight: 8,
   },
   filterChipActive: {
@@ -405,7 +521,7 @@ const styles = StyleSheet.create({
   },
   filterChipText: {
     color: SkeuoTheme.colors.textSecondary,
-    fontWeight: "600",
+    fontWeight: "700",
     fontSize: 12,
   },
   filterChipTextActive: {
@@ -415,9 +531,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
-    minHeight: 56,
-    paddingBottom: 20,
+    minHeight: 64,
+    paddingBottom: 14,
     zIndex: 1,
+  },
+  headerTextWrap: {
+    marginLeft: 14,
+  },
+  headerKicker: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
   backButton: {
     width: 48,
@@ -428,17 +554,12 @@ const styles = StyleSheet.create({
     borderColor: SkeuoTheme.colors.border,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#5f807f",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...SkeuoTheme.shadow.outerSoft,
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: "700",
+    fontSize: 32,
+    fontWeight: "800",
     color: "white",
-    marginLeft: 15,
   },
   list: {
     flex: 1,
@@ -450,7 +571,7 @@ const styles = StyleSheet.create({
   emptyCard: {
     marginTop: 10,
     backgroundColor: SkeuoTheme.colors.cardBackground,
-    borderRadius: 16,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
     padding: 20,
@@ -458,8 +579,8 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     marginTop: 10,
-    fontSize: 20,
-    fontWeight: "700",
+    fontSize: 22,
+    fontWeight: "800",
     color: SkeuoTheme.colors.textPrimary,
   },
   emptyText: {
@@ -472,8 +593,8 @@ const styles = StyleSheet.create({
     marginTop: 14,
     backgroundColor: SkeuoTheme.colors.accent,
     paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingVertical: 12,
+    borderRadius: 14,
   },
   addInlineButtonText: {
     color: SkeuoTheme.colors.white,
@@ -481,16 +602,12 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: SkeuoTheme.colors.cardBackground,
-    borderRadius: 16,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
     padding: 16,
     marginBottom: 12,
-    shadowColor: "#5f807f",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
+    ...SkeuoTheme.shadow.outerSoft,
   },
   cardTopRow: {
     flexDirection: "row",
@@ -504,9 +621,9 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   colorPill: {
-    width: 10,
-    height: 46,
-    borderRadius: 5,
+    width: 14,
+    height: 52,
+    borderRadius: 7,
     marginRight: 12,
   },
   titleTextWrap: {
@@ -514,8 +631,8 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   name: {
-    fontSize: 20,
-    fontWeight: "700",
+    fontSize: 21,
+    fontWeight: "800",
     color: SkeuoTheme.colors.textPrimary,
   },
   dosage: {
@@ -529,17 +646,17 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   editButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 14,
     backgroundColor: SkeuoTheme.colors.accent,
     justifyContent: "center",
     alignItems: "center",
   },
   deleteButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 14,
     backgroundColor: SkeuoTheme.colors.dangerSurface,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.dangerBorder,
@@ -557,17 +674,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     backgroundColor: SkeuoTheme.colors.neutralSurface,
-    borderRadius: 999,
-    paddingVertical: 6,
+    borderRadius: 12,
+    paddingVertical: 7,
     paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
   },
   metaChipText: {
     color: SkeuoTheme.colors.textSecondary,
     fontSize: 12,
     fontWeight: "600",
   },
-  supplyHeaderRow: {
+  supplyPanel: {
     marginTop: 12,
+    backgroundColor: SkeuoTheme.colors.neutralSurface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  supplyHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -583,10 +710,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   supplyTrack: {
-    marginTop: 7,
-    height: 8,
+    marginTop: 8,
+    height: 10,
     borderRadius: 999,
-    backgroundColor: SkeuoTheme.colors.neutralSurface,
+    backgroundColor: SkeuoTheme.colors.cardBackground,
     overflow: "hidden",
   },
   supplyFill: {
@@ -596,16 +723,12 @@ const styles = StyleSheet.create({
   fab: {
     position: "absolute",
     right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: SkeuoTheme.colors.accent,
-    shadowColor: "#0e6b63",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 8,
+    ...SkeuoTheme.shadow.outer,
   },
 });

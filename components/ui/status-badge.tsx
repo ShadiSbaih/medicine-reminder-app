@@ -85,21 +85,22 @@ const styles = StyleSheet.create({
   badge: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 999,
     borderWidth: 1,
   },
   badgeCompact: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4.5,
   },
   text: {
-    marginLeft: 4,
-    fontSize: 14,
+    marginLeft: 5,
+    fontSize: 13,
     fontWeight: "600",
+    letterSpacing: 0.2,
   },
   textCompact: {
-    fontSize: 12,
+    fontSize: 11,
   },
 });

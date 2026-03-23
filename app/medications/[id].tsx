@@ -107,6 +107,25 @@ export default function MedicationDetailsScreen() {
         </View>
 
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+          <View style={styles.summaryStrip}>
+            <View style={styles.summaryStripItem}>
+              <Text style={styles.summaryStripValue}>
+                {medication.frequency}
+              </Text>
+              <Text style={styles.summaryStripLabel}>Frequency</Text>
+            </View>
+            <View style={styles.summaryStripItem}>
+              <Text style={styles.summaryStripValue}>{todayItems.length}</Text>
+              <Text style={styles.summaryStripLabel}>Today Doses</Text>
+            </View>
+            <View style={styles.summaryStripItem}>
+              <Text style={styles.summaryStripValue}>
+                {Math.max(0, medication.currentSupply)}
+              </Text>
+              <Text style={styles.summaryStripLabel}>In Stock</Text>
+            </View>
+          </View>
+
           <View style={styles.card}>
             <View style={styles.titleRow}>
               <View
@@ -285,7 +304,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 20,
     minHeight: 56,
-    paddingBottom: 20,
+    paddingBottom: 16,
     zIndex: 1,
   },
   backButton: {
@@ -297,10 +316,11 @@ const styles = StyleSheet.create({
     borderColor: SkeuoTheme.colors.border,
     justifyContent: "center",
     alignItems: "center",
+    ...SkeuoTheme.shadow.outerSoft,
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: "700",
+    fontSize: 30,
+    fontWeight: "800",
     color: "white",
     marginLeft: 15,
   },
@@ -308,36 +328,67 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
-  card: {
-    backgroundColor: SkeuoTheme.colors.cardBackground,
-    borderRadius: 16,
+  summaryStrip: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12,
+  },
+  summaryStripItem: {
+    flex: 1,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    padding: 16,
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    paddingVertical: 10,
+    alignItems: "center",
+    ...SkeuoTheme.shadow.outerSoft,
+  },
+  summaryStripValue: {
+    color: SkeuoTheme.colors.textPrimary,
+    fontSize: 14,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  summaryStripLabel: {
+    marginTop: 2,
+    color: SkeuoTheme.colors.textSecondary,
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.25,
+  },
+  card: {
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    padding: 18,
     marginBottom: 12,
+    ...SkeuoTheme.shadow.outerSoft,
   },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
   },
   colorPill: {
-    width: 10,
-    height: 46,
-    borderRadius: 5,
+    width: 12,
+    height: 50,
+    borderRadius: 6,
     marginRight: 12,
   },
   titleTextWrap: {
     flex: 1,
   },
   name: {
-    fontSize: 22,
-    fontWeight: "700",
+    fontSize: 24,
+    fontWeight: "800",
     color: SkeuoTheme.colors.textPrimary,
   },
   dosage: {
     marginTop: 2,
     color: SkeuoTheme.colors.textSecondary,
-    fontSize: 15,
+    fontSize: 16,
+    fontWeight: "600",
   },
   chipsRow: {
     flexDirection: "row",
@@ -351,28 +402,29 @@ const styles = StyleSheet.create({
     gap: 6,
     backgroundColor: SkeuoTheme.colors.neutralSurface,
     borderRadius: 999,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: 7,
+    paddingHorizontal: 11,
   },
   chipText: {
     color: SkeuoTheme.colors.textSecondary,
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   metaText: {
     marginTop: 10,
     color: SkeuoTheme.colors.textSecondary,
-    fontSize: 13,
+    fontSize: 14,
+    lineHeight: 20,
   },
   notesText: {
     marginTop: 8,
     color: SkeuoTheme.colors.textPrimary,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 22,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 19,
+    fontWeight: "800",
     color: SkeuoTheme.colors.textPrimary,
   },
   supplyHeaderRow: {
@@ -383,8 +435,8 @@ const styles = StyleSheet.create({
   supplyLabel: {
     marginTop: 8,
     color: SkeuoTheme.colors.textSecondary,
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 14,
+    fontWeight: "700",
   },
   lowStockText: {
     color: SkeuoTheme.colors.danger,
@@ -392,8 +444,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   supplyTrack: {
-    marginTop: 10,
-    height: 8,
+    marginTop: 11,
+    height: 10,
     borderRadius: 999,
     backgroundColor: SkeuoTheme.colors.neutralSurface,
     overflow: "hidden",
@@ -403,22 +455,23 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   todayRow: {
-    marginTop: 10,
+    marginTop: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: SkeuoTheme.colors.border,
   },
   todayTime: {
     color: SkeuoTheme.colors.textPrimary,
-    fontWeight: "600",
+    fontWeight: "700",
+    fontSize: 15,
   },
   todayState: {
     marginTop: 2,
     color: SkeuoTheme.colors.textSecondary,
-    fontSize: 12,
+    fontSize: 13,
   },
   footer: {
     padding: 20,
@@ -428,14 +481,16 @@ const styles = StyleSheet.create({
   },
   editButton: {
     backgroundColor: SkeuoTheme.colors.accent,
-    borderRadius: 16,
-    paddingVertical: 15,
+    borderRadius: 18,
+    paddingVertical: 16,
     justifyContent: "center",
     alignItems: "center",
+    ...SkeuoTheme.shadow.outerSoft,
   },
   editButtonText: {
     color: SkeuoTheme.colors.white,
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "800",
+    letterSpacing: 0.25,
   },
 });

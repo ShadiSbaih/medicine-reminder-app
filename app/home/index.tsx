@@ -49,31 +49,31 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const QUICK_ACTIONS = [
   {
     icon: "add-circle-outline" as const,
-    label: "Add\nMedication",
+    label: "Create\nMedication",
     route: "/medications" as const,
-    color: "#20B486",
-    gradient: ["#26C89A", "#117A66"] as [string, string],
+    color: "#0b87ab",
+    gradient: ["#148bb7", "#0c6f97"] as [string, string],
   },
   {
     icon: "calendar-outline" as const,
-    label: "Calendar\nView",
+    label: "Calendar\nPlanner",
     route: "/calendar" as const,
-    color: "#3B82F6",
-    gradient: ["#5B9DFF", "#2D5BBF"] as [string, string],
+    color: "#3a76dc",
+    gradient: ["#548df0", "#346fcf"] as [string, string],
   },
   {
     icon: "time-outline" as const,
-    label: "History\nLog",
+    label: "History\nAnalytics",
     route: "/history" as const,
-    color: "#E58A2E",
-    gradient: ["#F3A94B", "#CF6F1B"] as [string, string],
+    color: "#b97a00",
+    gradient: ["#d18f1a", "#a66a00"] as [string, string],
   },
   {
     icon: "medical-outline" as const,
-    label: "Refill\nTracker",
+    label: "Inventory\nRefills",
     route: "/refills" as const,
-    color: "#7C66E6",
-    gradient: ["#9580F5", "#5A43BF"] as [string, string],
+    color: "#247b8f",
+    gradient: ["#3498b0", "#1d6f84"] as [string, string],
   },
 ];
 
@@ -128,7 +128,7 @@ function CircularProgress({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="rgba(255, 255, 255, 0.2)"
+          stroke="rgba(15, 143, 174, 0.22)"
           strokeWidth={strokeWidth}
           fill="none"
         />
@@ -136,7 +136,7 @@ function CircularProgress({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="white"
+          stroke={SkeuoTheme.colors.accentDark}
           strokeWidth={strokeWidth}
           fill="none"
           strokeDasharray={circumference}
@@ -330,13 +330,28 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.root}>
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <LinearGradient
+        colors={[
+          SkeuoTheme.colors.headerGradientStart,
+          SkeuoTheme.colors.headerGradientEnd,
+        ]}
+        style={[styles.heroGradient, { height: insets.top + 230 }]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+      />
+      <ScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         <LinearGradient
           colors={[
             SkeuoTheme.colors.headerGradientStart,
             SkeuoTheme.colors.headerGradientEnd,
           ]}
           style={[styles.header, { paddingTop: insets.top + 10 }]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
         >
           <View style={styles.headerContent}>
             <View style={styles.headerTop}>
@@ -365,15 +380,39 @@ export default function HomeScreen() {
                 )}
               </TouchableOpacity>
             </View>
-            <CircularProgress
-              progress={progress}
-              totalDoses={totalScheduledDoses}
-              completedDoses={completedDoses}
-            />
+            <View style={styles.heroSummaryRow}>
+              <View style={styles.heroSummaryItem}>
+                <Text style={styles.heroSummaryValue}>
+                  {totalScheduledDoses}
+                </Text>
+                <Text style={styles.heroSummaryLabel}>Scheduled</Text>
+              </View>
+              <View style={styles.heroSummaryDivider} />
+              <View style={styles.heroSummaryItem}>
+                <Text style={styles.heroSummaryValue}>{completedDoses}</Text>
+                <Text style={styles.heroSummaryLabel}>Completed</Text>
+              </View>
+              <View style={styles.heroSummaryDivider} />
+              <View style={styles.heroSummaryItem}>
+                <Text style={styles.heroSummaryValue}>{overdueCount}</Text>
+                <Text style={styles.heroSummaryLabel}>Overdue</Text>
+              </View>
+            </View>
           </View>
         </LinearGradient>
 
         <View style={styles.content}>
+          <View style={styles.progressSection}>
+            <View style={styles.progressCard}>
+              <Text style={styles.progressCardTitle}>Today Progress</Text>
+              <CircularProgress
+                progress={progress}
+                totalDoses={totalScheduledDoses}
+                completedDoses={completedDoses}
+              />
+            </View>
+          </View>
+
           <View style={styles.focusSection}>
             <View style={styles.focusCard}>
               <View style={styles.focusHeaderRow}>
@@ -399,28 +438,30 @@ export default function HomeScreen() {
                   <Text style={styles.focusMeta}>
                     {nextDueDose.medication.dosage} • {nextDueDose.timeLabel}
                   </Text>
-                  <TouchableOpacity
-                    style={styles.focusActionButton}
-                    onPress={() =>
-                      handleTakeDose(
-                        nextDueDose.medication,
-                        nextDueDose.scheduledTime,
-                      )
-                    }
-                  >
-                    <Text style={styles.focusActionText}>Mark as Taken</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.focusSkipButton}
-                    onPress={() =>
-                      confirmSkipDose(
-                        nextDueDose.medication,
-                        nextDueDose.scheduledTime,
-                      )
-                    }
-                  >
-                    <Text style={styles.focusSkipText}>Skip for now</Text>
-                  </TouchableOpacity>
+                  <View style={styles.focusButtonsRow}>
+                    <TouchableOpacity
+                      style={styles.focusActionButton}
+                      onPress={() =>
+                        handleTakeDose(
+                          nextDueDose.medication,
+                          nextDueDose.scheduledTime,
+                        )
+                      }
+                    >
+                      <Text style={styles.focusActionText}>Mark as Taken</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.focusSkipButton}
+                      onPress={() =>
+                        confirmSkipDose(
+                          nextDueDose.medication,
+                          nextDueDose.scheduledTime,
+                        )
+                      }
+                    >
+                      <Text style={styles.focusSkipText}>Skip for now</Text>
+                    </TouchableOpacity>
+                  </View>
                 </>
               ) : (
                 <>
@@ -436,7 +477,9 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.quickActionsContainer}>
-            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <View style={styles.sectionHeaderBar}>
+              <Text style={styles.sectionTitle}>Quick Actions</Text>
+            </View>
             <View style={styles.quickActionsGrid}>
               {QUICK_ACTIONS.map((action) => (
                 <Link href={action.route as any} key={action.label} asChild>
@@ -446,12 +489,7 @@ export default function HomeScreen() {
                       style={styles.actionGradient}
                     >
                       <View style={styles.actionContent}>
-                        <View
-                          style={[
-                            styles.actionIcon,
-                            { backgroundColor: `${action.color}55` },
-                          ]}
-                        >
+                        <View style={[styles.actionIcon]}>
                           <Ionicons
                             name={action.icon}
                             size={28}
@@ -471,7 +509,7 @@ export default function HomeScreen() {
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Today&apos;s Schedule</Text>
               <Link href="/calendar" asChild>
-                <TouchableOpacity>
+                <TouchableOpacity style={styles.seeAllButtonWrap}>
                   <Text style={styles.seeAllButton}>See All</Text>
                 </TouchableOpacity>
               </Link>
@@ -515,49 +553,51 @@ export default function HomeScreen() {
                 const isSkipped = doseItem.status === "skipped";
                 return (
                   <View key={doseItem.id} style={styles.doseCard}>
-                    <View
-                      style={[
-                        styles.doseBadge,
-                        { backgroundColor: `${medication.color}15` },
-                      ]}
-                    >
-                      <Ionicons
-                        name="medical"
-                        size={24}
-                        color={medication.color}
-                      />
-                    </View>
-                    <View style={styles.doseInfo}>
-                      <View>
-                        <Text style={styles.medicineName}>
-                          {medication.name}
-                        </Text>
-                        <Text style={styles.dosageInfo}>
-                          {medication.dosage}
-                        </Text>
-                      </View>
-                      <View style={styles.doseTime}>
+                    <View style={styles.doseCardTop}>
+                      <View
+                        style={[
+                          styles.doseBadge,
+                          { backgroundColor: `${medication.color}15` },
+                        ]}
+                      >
                         <Ionicons
-                          name="time-outline"
-                          size={16}
-                          color={SkeuoTheme.colors.textSecondary}
+                          name="medical"
+                          size={24}
+                          color={medication.color}
                         />
-                        <Text style={styles.timeText}>{timeLabel}</Text>
                       </View>
-                      {!doseItem.isResolved && (
-                        <View style={styles.inlineStatusWrap}>
-                          <StatusBadge
-                            status={
-                              scheduledTime
-                                ? isOverdue
-                                  ? "overdue"
-                                  : "upcoming"
-                                : "upcoming"
-                            }
-                            compact
-                          />
+                      <View style={styles.doseInfo}>
+                        <View>
+                          <Text style={styles.medicineName}>
+                            {medication.name}
+                          </Text>
+                          <Text style={styles.dosageInfo}>
+                            {medication.dosage}
+                          </Text>
                         </View>
-                      )}
+                        <View style={styles.doseTime}>
+                          <Ionicons
+                            name="time-outline"
+                            size={16}
+                            color={SkeuoTheme.colors.textSecondary}
+                          />
+                          <Text style={styles.timeText}>{timeLabel}</Text>
+                        </View>
+                        {!doseItem.isResolved && (
+                          <View style={styles.inlineStatusWrap}>
+                            <StatusBadge
+                              status={
+                                scheduledTime
+                                  ? isOverdue
+                                    ? "overdue"
+                                    : "upcoming"
+                                  : "upcoming"
+                              }
+                              compact
+                            />
+                          </View>
+                        )}
+                      </View>
                     </View>
                     {taken ? (
                       <StatusBadge status="taken" />
@@ -602,6 +642,17 @@ export default function HomeScreen() {
                 );
               })
             )}
+          </View>
+
+          <View style={styles.creditWrap}>
+            <View style={styles.creditBadge}>
+              <Ionicons
+                name="code-working-outline"
+                size={14}
+                color={SkeuoTheme.colors.accentDark}
+              />
+              <Text style={styles.creditText}>develeopd by :Shadi Sbaih</Text>
+            </View>
           </View>
         </View>
 
@@ -703,57 +754,119 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+    backgroundColor: SkeuoTheme.colors.pageBackground,
+  },
+  heroGradient: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
   },
   container: {
     flex: 1,
-    backgroundColor: SkeuoTheme.colors.pageBackground,
+  },
+  scrollContent: {
+    paddingBottom: 32,
   },
   header: {
-    paddingTop: 12,
-    paddingBottom: 25,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    paddingTop: 10,
+    paddingBottom: 18,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    marginHorizontal: 16,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    ...SkeuoTheme.shadow.outer,
   },
   headerContent: {
-    alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
   },
   headerTop: {
     flexDirection: "row",
     alignItems: "center",
     width: "100%",
-    marginBottom: 20,
+    marginBottom: 14,
   },
   greeting: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "700",
     color: SkeuoTheme.colors.white,
-    opacity: 0.9,
+    opacity: 0.95,
+    letterSpacing: 0.7,
+    textTransform: "uppercase",
   },
   greetingSub: {
-    marginTop: 2,
-    fontSize: 13,
-    color: "rgba(255, 255, 255, 0.85)",
+    marginTop: 4,
+    fontSize: 16,
+    color: "rgba(255, 255, 255, 0.96)",
+    fontWeight: "700",
+    maxWidth: "95%",
+  },
+  heroSummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderRadius: 12,
+    paddingVertical: 8,
+    marginBottom: 4,
+  },
+  heroSummaryItem: {
+    flex: 1,
+    paddingVertical: 4,
+    alignItems: "center",
+  },
+  heroSummaryDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: "rgba(255,255,255,0.22)",
+  },
+  heroSummaryValue: {
+    color: SkeuoTheme.colors.white,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  heroSummaryLabel: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+    marginTop: 1,
   },
   content: {
     flex: 1,
-    paddingTop: 20,
+    paddingTop: 14,
+  },
+  progressSection: {
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  progressCard: {
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderRadius: 20,
+    paddingVertical: 10,
+  },
+  progressCardTitle: {
+    textAlign: "center",
+    fontSize: 13,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    color: SkeuoTheme.colors.textSecondary,
+    marginBottom: 8,
   },
   focusSection: {
-    paddingHorizontal: 20,
-    marginBottom: 18,
+    paddingHorizontal: 16,
+    marginBottom: 12,
   },
   focusCard: {
     backgroundColor: SkeuoTheme.colors.cardBackground,
-    borderRadius: SkeuoTheme.radius.md,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    padding: 16,
-    shadowColor: "#5f807f",
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
+    padding: 18,
+    ...SkeuoTheme.shadow.outerSoft,
   },
   focusHeaderRow: {
     flexDirection: "row",
@@ -762,9 +875,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   focusTitle: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 13,
+    fontWeight: "800",
     color: SkeuoTheme.colors.textPrimary,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
   },
   overdueBadge: {
     backgroundColor: SkeuoTheme.colors.dangerSurface,
@@ -791,37 +906,45 @@ const styles = StyleSheet.create({
     color: SkeuoTheme.colors.success,
   },
   focusMedication: {
-    fontSize: 17,
-    fontWeight: "700",
+    fontSize: 21,
+    fontWeight: "800",
     color: SkeuoTheme.colors.textPrimary,
-    marginBottom: 4,
+    marginBottom: 3,
   },
   focusMeta: {
-    fontSize: 14,
+    fontSize: 15,
     color: SkeuoTheme.colors.textSecondary,
     marginBottom: 12,
   },
+  focusButtonsRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
   focusActionButton: {
-    alignSelf: "flex-start",
+    flex: 1,
     backgroundColor: SkeuoTheme.colors.accent,
-    borderRadius: SkeuoTheme.radius.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    minHeight: 48,
   },
   focusActionText: {
     color: SkeuoTheme.colors.white,
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: 14,
+    fontWeight: "800",
+    letterSpacing: 0.3,
   },
   focusSkipButton: {
-    alignSelf: "flex-start",
+    flex: 1,
     borderWidth: 1,
-    borderColor: SkeuoTheme.colors.accent,
-    borderRadius: SkeuoTheme.radius.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    marginTop: 8,
-    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderColor: SkeuoTheme.colors.border,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    backgroundColor: SkeuoTheme.colors.neutralSurface,
+    alignItems: "center",
+    minHeight: 48,
   },
   focusSkipText: {
     color: SkeuoTheme.colors.accentDark,
@@ -829,92 +952,110 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   quickActionsContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 25,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  sectionHeaderBar: {
+    marginBottom: 8,
   },
   quickActionsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
-    marginTop: 15,
+    gap: 8,
   },
   actionButton: {
-    width: (width - 52) / 2,
-    height: 110,
-    borderRadius: 16,
+    width: (width - 48) / 2,
+    height: 116,
+    borderRadius: 22,
     overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.35)",
+    ...SkeuoTheme.shadow.outerSoft,
   },
   actionGradient: {
     flex: 1,
-    padding: 15,
+    padding: 14,
   },
   actionContent: {
     flex: 1,
     justifyContent: "space-between",
   },
   actionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
     justifyContent: "center",
     alignItems: "center",
   },
   actionLabel: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "800",
     color: "white",
-    marginTop: 8,
+    marginTop: 6,
+    lineHeight: 18,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
   },
   section: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 15,
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: "700",
+    fontWeight: "800",
     color: SkeuoTheme.colors.textPrimary,
-    marginBottom: 5,
+  },
+  seeAllButtonWrap: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: SkeuoTheme.radius.pill,
+    backgroundColor: SkeuoTheme.colors.neutralSurface,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
   },
   seeAllButton: {
     color: SkeuoTheme.colors.accent,
-    fontWeight: "600",
+    fontWeight: "700",
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
   },
   doseCard: {
-    flexDirection: "row",
-    alignItems: "center",
     backgroundColor: SkeuoTheme.colors.cardBackground,
-    borderRadius: SkeuoTheme.radius.md,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: "#5f807f",
-    shadowOffset: { width: 5, height: 5 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
+    padding: 14,
+    marginBottom: 10,
+    ...SkeuoTheme.shadow.outerSoft,
+  },
+  doseCardTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 10,
   },
   doseBadge: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 15,
+    marginRight: 12,
+    marginTop: 2,
   },
   doseInfo: {
     flex: 1,
     justifyContent: "space-between",
   },
   medicineName: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 17,
+    fontWeight: "800",
     color: SkeuoTheme.colors.textPrimary,
     marginBottom: 4,
   },
@@ -936,22 +1077,26 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   takeDoseButton: {
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 15,
-    borderRadius: 15,
+    borderRadius: 12,
+    minHeight: 40,
+    justifyContent: "center",
   },
   doseActionsRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginLeft: 10,
+    justifyContent: "flex-end",
     gap: 8,
   },
   skipDoseButton: {
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 15,
+    borderRadius: 12,
     borderWidth: 1,
     backgroundColor: SkeuoTheme.colors.cardBackground,
+    minHeight: 40,
+    justifyContent: "center",
   },
   skipDoseText: {
     fontWeight: "600",
@@ -979,7 +1124,9 @@ const styles = StyleSheet.create({
   progressContainer: {
     alignItems: "center",
     justifyContent: "center",
-    marginVertical: 10,
+    marginVertical: 2,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
   },
   progressTextContainer: {
     position: "absolute",
@@ -988,9 +1135,9 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   progressPercentage: {
-    fontSize: 36,
-    fontWeight: "bold",
-    color: "white",
+    fontSize: 34,
+    fontWeight: "800",
+    color: SkeuoTheme.colors.accentDark,
   },
   progressLabel: {
     fontSize: 14,
@@ -1009,9 +1156,11 @@ const styles = StyleSheet.create({
     height: 44,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    backgroundColor: "rgba(255, 255, 255, 0.18)",
     borderRadius: 12,
     marginLeft: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
   },
   notificationBadge: {
     position: "absolute",
@@ -1033,8 +1182,9 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   progressDetails: {
-    fontSize: 14,
-    color: "rgba(255, 255, 255, 0.8)",
+    fontSize: 13,
+    color: SkeuoTheme.colors.textSecondary,
+    fontWeight: "600",
     marginTop: 4,
   },
   modalOverlay: {
@@ -1044,10 +1194,12 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: SkeuoTheme.colors.cardBackground,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     padding: 20,
-    maxHeight: "80%",
+    maxHeight: "82%",
+    borderTopWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
   },
   modalHeader: {
     flexDirection: "row",
@@ -1143,10 +1295,12 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     alignItems: "center",
-    padding: 30,
+    padding: 24,
     backgroundColor: SkeuoTheme.colors.cardBackground,
-    borderRadius: 16,
+    borderRadius: 20,
     marginTop: 10,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
   },
   emptyStateText: {
     fontSize: 16,
@@ -1164,6 +1318,7 @@ const styles = StyleSheet.create({
   emptyActionsRow: {
     flexDirection: "row",
     gap: 10,
+    marginTop: 6,
   },
   addMedicationButton: {
     backgroundColor: SkeuoTheme.colors.accent,
@@ -1186,5 +1341,28 @@ const styles = StyleSheet.create({
   secondaryEmptyButtonText: {
     color: SkeuoTheme.colors.textPrimary,
     fontWeight: "600",
+  },
+  creditWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 10,
+    alignItems: "center",
+  },
+  creditBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    backgroundColor: SkeuoTheme.colors.neutralSurface,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: SkeuoTheme.radius.pill,
+  },
+  creditText: {
+    color: SkeuoTheme.colors.accentDark,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.2,
   },
 });
