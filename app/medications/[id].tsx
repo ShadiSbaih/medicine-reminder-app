@@ -1,5 +1,8 @@
+import { FeedbackSnackbar } from "@/components/ui/feedback-snackbar";
+import { getEditOpenMessage } from "@/constants/feedback-copy";
 import { medicationService, todayTimelineService } from "@/services";
 import { TimelineDose } from "@/shared/utils/dose-timeline";
+import { triggerLightHaptic } from "@/utils/haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -24,6 +27,13 @@ export default function MedicationDetailsScreen() {
 
   const [medication, setMedication] = useState<Medication | null>(null);
   const [todayItems, setTodayItems] = useState<TimelineDose[]>([]);
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState("");
+
+  const showFeedback = useCallback((message: string) => {
+    setSnackbarMessage(message);
+    setSnackbarVisible(true);
+  }, []);
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -224,17 +234,28 @@ export default function MedicationDetailsScreen() {
         <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
           <TouchableOpacity
             style={styles.editButton}
-            onPress={() =>
-              router.push({
-                pathname: "/medications/add",
-                params: { medicationId: medication.id },
-              })
-            }
+            onPress={() => {
+              void triggerLightHaptic();
+              showFeedback(getEditOpenMessage(medication.name));
+              setTimeout(() => {
+                router.push({
+                  pathname: "/medications/add",
+                  params: { medicationId: medication.id },
+                });
+              }, 120);
+            }}
           >
             <Text style={styles.editButtonText}>Edit Medication</Text>
           </TouchableOpacity>
         </View>
       </View>
+
+      <FeedbackSnackbar
+        visible={snackbarVisible}
+        message={snackbarMessage}
+        type="info"
+        onHide={() => setSnackbarVisible(false)}
+      />
     </View>
   );
 }

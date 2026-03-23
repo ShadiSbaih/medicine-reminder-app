@@ -1,4 +1,9 @@
 import { StatusBadge } from "@/components/ui/status-badge";
+import {
+    getClearAllConfirmationAlert,
+    getClearAllFailureAlert,
+    getClearAllSuccessAlert,
+} from "@/constants/feedback-copy";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -147,30 +152,29 @@ export default function HistoryScreen() {
   }, [loadHistory]);
 
   const handleClearAllData = () => {
-    Alert.alert(
-      "Clear All Data",
-      "Are you sure you want to clear all medication data? This action cannot be undone.",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
+    const copy = getClearAllConfirmationAlert();
+    Alert.alert(copy.title, copy.message, [
+      {
+        text: copy.cancelLabel,
+        style: "cancel",
+      },
+      {
+        text: copy.confirmLabel,
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await clearAllData();
+            await loadHistory();
+            const success = getClearAllSuccessAlert();
+            Alert.alert(success.title, success.message);
+          } catch (error) {
+            console.error("Error clearing data:", error);
+            const failure = getClearAllFailureAlert();
+            Alert.alert(failure.title, failure.message);
+          }
         },
-        {
-          text: "Clear All",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await clearAllData();
-              await loadHistory();
-              Alert.alert("Success", "All data has been cleared successfully");
-            } catch (error) {
-              console.error("Error clearing data:", error);
-              Alert.alert("Error", "Failed to clear data. Please try again.");
-            }
-          },
-        },
-      ],
-    );
+      },
+    ]);
   };
 
   const resetFilters = () => {

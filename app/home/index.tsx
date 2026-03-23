@@ -1,8 +1,14 @@
 import { FeedbackSnackbar } from "@/components/ui/feedback-snackbar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import {
+  getDoseFailureAlert,
+  getDoseSuccessMessage,
+  getSkipConfirmationCopy,
+} from "@/constants/feedback-copy";
 import { doseService } from "@/services/dose-service";
 import { todayTimelineService } from "@/services/today-timeline-service";
 import { TimelineDose } from "@/shared/utils/dose-timeline";
+import { triggerLightHaptic } from "@/utils/haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -241,10 +247,12 @@ export default function HomeScreen() {
         await doseService.recordAsNeededDose(medication.id);
       }
       await loadTimeline(); // Reload timeline after recording dose
-      showFeedback(`Marked ${medication.name} as taken`);
+      void triggerLightHaptic();
+      showFeedback(getDoseSuccessMessage("take", medication.name));
     } catch (error) {
       console.error("Error recording dose:", error);
-      Alert.alert("Error", "Failed to record dose. Please try again.");
+      const failure = getDoseFailureAlert("take");
+      Alert.alert(failure.title, failure.message);
     }
   };
 
@@ -259,29 +267,27 @@ export default function HomeScreen() {
         await doseService.skipAsNeededDose(medication.id);
       }
       await loadTimeline();
-      showFeedback(`Skipped ${medication.name} for this slot`);
+      void triggerLightHaptic();
+      showFeedback(getDoseSuccessMessage("skip", medication.name));
     } catch (error) {
       console.error("Error skipping dose:", error);
-      Alert.alert("Error", "Failed to skip dose. Please try again.");
+      const failure = getDoseFailureAlert("skip");
+      Alert.alert(failure.title, failure.message);
     }
   };
 
   const confirmSkipDose = (medication: Medication, scheduledTime?: string) => {
-    const whenText = scheduledTime ? ` at ${scheduledTime}` : "";
-    Alert.alert(
-      "Skip dose?",
-      `Mark ${medication.name}${whenText} as skipped for now?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Skip",
-          style: "destructive",
-          onPress: () => {
-            void handleSkipDose(medication, scheduledTime);
-          },
+    const copy = getSkipConfirmationCopy(medication.name, scheduledTime);
+    Alert.alert(copy.title, copy.message, [
+      { text: copy.cancelLabel, style: "cancel" },
+      {
+        text: copy.confirmLabel,
+        style: "destructive",
+        onPress: () => {
+          void handleSkipDose(medication, scheduledTime);
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const notificationItems: NotificationItem[] =

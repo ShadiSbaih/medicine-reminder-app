@@ -1,3 +1,11 @@
+import {
+    getDeleteConfirmationAlert,
+    getDeleteFailureAlert,
+    getDeleteSuccessAlert,
+    getEntityNotFoundAlert,
+    getSaveFailureAlert,
+    getSaveSuccessAlert,
+} from "@/constants/feedback-copy";
 import { medicationService } from "@/services/medication-service";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -125,7 +133,8 @@ export default function AddMedicationScreen() {
     const loadMedicationForEdit = async () => {
       const existing = await medicationService.getById(medicationId);
       if (!existing) {
-        Alert.alert("Not found", "Medication was not found.", [
+        const notFound = getEntityNotFoundAlert("Medication");
+        Alert.alert(notFound.title, notFound.message, [
           { text: "OK", onPress: () => router.back() },
         ]);
         return;
@@ -308,22 +317,21 @@ export default function AddMedicationScreen() {
         });
       }
 
+      const success = getSaveSuccessAlert(isEditMode);
       Alert.alert(
-        "Success",
-        isEditMode
-          ? "Medication updated successfully"
-          : "Medication added successfully",
+        success.title,
+        success.message,
         [{ text: "OK", onPress: () => router.back() }],
-        { cancelable: false },
+        {
+          cancelable: false,
+        },
       );
     } catch (error) {
       console.error("Save error:", error);
-      Alert.alert(
-        "Error",
-        "Failed to save medication. Please try again.",
-        [{ text: "OK" }],
-        { cancelable: false },
-      );
+      const failure = getSaveFailureAlert();
+      Alert.alert(failure.title, failure.message, [{ text: "OK" }], {
+        cancelable: false,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -332,28 +340,27 @@ export default function AddMedicationScreen() {
   const handleDeleteMedication = () => {
     if (!isEditMode || !medicationId) return;
 
-    Alert.alert(
-      "Delete Medication",
-      "Are you sure you want to delete this medication?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await medicationService.remove(medicationId);
-              Alert.alert("Deleted", "Medication deleted successfully", [
-                { text: "OK", onPress: () => router.back() },
-              ]);
-            } catch (error) {
-              console.error("Delete error:", error);
-              Alert.alert("Error", "Failed to delete medication.");
-            }
-          },
+    const copy = getDeleteConfirmationAlert();
+    Alert.alert(copy.title, copy.message, [
+      { text: copy.cancelLabel, style: "cancel" },
+      {
+        text: copy.confirmLabel,
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await medicationService.remove(medicationId);
+            const success = getDeleteSuccessAlert();
+            Alert.alert(success.title, success.message, [
+              { text: "OK", onPress: () => router.back() },
+            ]);
+          } catch (error) {
+            console.error("Delete error:", error);
+            const failure = getDeleteFailureAlert();
+            Alert.alert(failure.title, failure.message);
+          }
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const handlePrimaryAction = () => {
@@ -367,33 +374,67 @@ export default function AddMedicationScreen() {
   };
 
   const renderStepBasic = () => (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Basic Info</Text>
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={[styles.mainInput, errors.name && styles.inputError]}
-          placeholder="Medication Name"
-          placeholderTextColor={SkeuoTheme.colors.textTertiary}
-          value={form.name}
-          onChangeText={(text) => {
-            setForm((prev) => ({ ...prev, name: text }));
-          }}
-        />
-      </View>
-      {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
+    <View style={[styles.section, styles.basicSection]}>
+      <View>
+        <Text style={styles.sectionTitle}>Basic Info</Text>
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={[styles.mainInput, errors.name && styles.inputError]}
+            placeholder="Medication Name"
+            placeholderTextColor={SkeuoTheme.colors.textTertiary}
+            value={form.name}
+            onChangeText={(text) => {
+              setForm((prev) => ({ ...prev, name: text }));
+            }}
+          />
+        </View>
+        {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
 
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={[styles.mainInput, errors.dosage && styles.inputError]}
-          placeholder="Dosage (e.g., 500mg)"
-          placeholderTextColor={SkeuoTheme.colors.textTertiary}
-          value={form.dosage}
-          onChangeText={(text) => {
-            setForm((prev) => ({ ...prev, dosage: text }));
-          }}
-        />
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={[styles.mainInput, errors.dosage && styles.inputError]}
+            placeholder="Dosage (e.g., 500mg)"
+            placeholderTextColor={SkeuoTheme.colors.textTertiary}
+            value={form.dosage}
+            onChangeText={(text) => {
+              setForm((prev) => ({ ...prev, dosage: text }));
+            }}
+          />
+        </View>
+        {errors.dosage && <Text style={styles.errorText}>{errors.dosage}</Text>}
       </View>
-      {errors.dosage && <Text style={styles.errorText}>{errors.dosage}</Text>}
+
+      <View style={styles.progressHintCard}>
+        <View style={styles.progressHintHeader}>
+          <Ionicons
+            name="sparkles-outline"
+            size={18}
+            color={SkeuoTheme.colors.accentDark}
+          />
+          <Text style={styles.progressHintTitle}>What comes next</Text>
+        </View>
+
+        <View style={styles.progressHintRow}>
+          <Ionicons
+            name="time-outline"
+            size={16}
+            color={SkeuoTheme.colors.textSecondary}
+          />
+          <Text style={styles.progressHintText}>
+            Choose frequency and dose times.
+          </Text>
+        </View>
+        <View style={styles.progressHintRow}>
+          <Ionicons
+            name="notifications-outline"
+            size={16}
+            color={SkeuoTheme.colors.textSecondary}
+          />
+          <Text style={styles.progressHintText}>
+            Configure reminders and refill alerts.
+          </Text>
+        </View>
+      </View>
     </View>
   );
 
@@ -724,12 +765,12 @@ export default function AddMedicationScreen() {
           SkeuoTheme.colors.headerGradientStart,
           SkeuoTheme.colors.headerGradientEnd,
         ]}
-        style={[styles.headerGradient, { height: insets.top + 102 }]}
+        style={[styles.headerGradient, { height: insets.top + 138 }]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
       />
 
-      <View style={[styles.content, { paddingTop: insets.top + 8 }]}>
+      <View style={[styles.content, { paddingTop: insets.top + 12 }]}>
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => router.back()}
@@ -794,22 +835,11 @@ export default function AddMedicationScreen() {
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-          <View style={styles.footerRow}>
-            {currentStep > 0 ? (
-              <TouchableOpacity
-                style={styles.secondaryButton}
-                disabled={isSubmitting}
-                onPress={() => setCurrentStep((prev) => Math.max(0, prev - 1))}
-              >
-                <Text style={styles.secondaryButtonText}>Back</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.footerSpacer} />
-            )}
-
+          {currentStep === 0 ? (
             <TouchableOpacity
               style={[
                 styles.saveButton,
+                styles.saveButtonFull,
                 isSubmitting && styles.saveButtonDisabled,
               ]}
               onPress={handlePrimaryAction}
@@ -824,20 +854,51 @@ export default function AddMedicationScreen() {
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
               >
-                <Text style={styles.saveButtonText}>
-                  {currentStep < WIZARD_STEPS.length - 1
-                    ? "Continue"
-                    : isSubmitting
-                      ? isEditMode
-                        ? "Saving..."
-                        : "Adding..."
-                      : isEditMode
-                        ? "Save Changes"
-                        : "Add Medication"}
-                </Text>
+                <Text style={styles.saveButtonText}>Continue</Text>
               </LinearGradient>
             </TouchableOpacity>
-          </View>
+          ) : (
+            <View style={styles.footerRow}>
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                disabled={isSubmitting}
+                onPress={() => setCurrentStep((prev) => Math.max(0, prev - 1))}
+              >
+                <Text style={styles.secondaryButtonText}>Back</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.saveButton,
+                  isSubmitting && styles.saveButtonDisabled,
+                ]}
+                onPress={handlePrimaryAction}
+                disabled={isSubmitting}
+              >
+                <LinearGradient
+                  colors={[
+                    SkeuoTheme.colors.headerGradientStart,
+                    SkeuoTheme.colors.headerGradientEnd,
+                  ]}
+                  style={styles.saveButtonGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  <Text style={styles.saveButtonText}>
+                    {currentStep < WIZARD_STEPS.length - 1
+                      ? "Continue"
+                      : isSubmitting
+                        ? isEditMode
+                          ? "Saving..."
+                          : "Adding..."
+                        : isEditMode
+                          ? "Save Changes"
+                          : "Add Medication"}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {isEditMode && (
             <TouchableOpacity
@@ -933,8 +994,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
-    minHeight: 56,
-    paddingBottom: 8,
+    minHeight: 62,
+    paddingBottom: 12,
     zIndex: 1,
   },
   backButton: {
@@ -972,7 +1033,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingBottom: 8,
+    paddingVertical: 8,
+    marginHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: "rgba(255, 255, 255, 0.14)",
   },
   stepItem: {
     alignItems: "center",
@@ -983,44 +1047,51 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: SkeuoTheme.colors.border,
-    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderColor: "rgba(255,255,255,0.55)",
+    backgroundColor: "rgba(255,255,255,0.18)",
     alignItems: "center",
     justifyContent: "center",
   },
   stepCircleActive: {
-    borderColor: SkeuoTheme.colors.accent,
-    backgroundColor: SkeuoTheme.colors.accent,
+    borderColor: SkeuoTheme.colors.white,
+    backgroundColor: SkeuoTheme.colors.white,
   },
   stepCircleDone: {
-    borderColor: SkeuoTheme.colors.success,
-    backgroundColor: SkeuoTheme.colors.success,
+    borderColor: "rgba(255,255,255,0.85)",
+    backgroundColor: "rgba(255,255,255,0.75)",
   },
   stepCircleText: {
     fontSize: 12,
     fontWeight: "700",
-    color: SkeuoTheme.colors.textSecondary,
+    color: SkeuoTheme.colors.white,
   },
   stepCircleTextActive: {
-    color: SkeuoTheme.colors.white,
+    color: SkeuoTheme.colors.accentDark,
   },
   stepLabel: {
     marginTop: 6,
     fontSize: 12,
-    color: SkeuoTheme.colors.textSecondary,
+    color: "rgba(255,255,255,0.84)",
     fontWeight: "600",
   },
   stepLabelActive: {
-    color: SkeuoTheme.colors.textPrimary,
+    color: SkeuoTheme.colors.white,
   },
   formContainer: {
     flex: 1,
   },
   formContentContainer: {
     padding: 20,
+    paddingTop: 14,
+    flexGrow: 1,
   },
   section: {
     marginBottom: 25,
+  },
+  basicSection: {
+    flex: 1,
+    justifyContent: "space-between",
+    minHeight: 360,
   },
   sectionTitle: {
     fontSize: 18,
@@ -1288,8 +1359,40 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: SkeuoTheme.colors.textPrimary,
   },
+  progressHintCard: {
+    marginTop: 18,
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    padding: 14,
+  },
+  progressHintHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 10,
+  },
+  progressHintTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: SkeuoTheme.colors.textPrimary,
+  },
+  progressHintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 7,
+  },
+  progressHintText: {
+    flex: 1,
+    fontSize: 13,
+    color: SkeuoTheme.colors.textSecondary,
+  },
   footer: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 14,
     backgroundColor: SkeuoTheme.colors.pageBackground,
     borderTopWidth: 1,
     borderTopColor: SkeuoTheme.colors.border,
@@ -1299,9 +1402,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     marginBottom: 12,
-  },
-  footerSpacer: {
-    flex: 1,
   },
   secondaryButton: {
     flex: 1,
@@ -1322,6 +1422,11 @@ const styles = StyleSheet.create({
     flex: 2,
     borderRadius: 16,
     overflow: "hidden",
+  },
+  saveButtonFull: {
+    width: "100%",
+    flex: 0,
+    marginBottom: 12,
   },
   saveButtonGradient: {
     paddingVertical: 15,

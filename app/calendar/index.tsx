@@ -1,8 +1,14 @@
 import { FeedbackSnackbar } from "@/components/ui/feedback-snackbar";
 import { StatusBadge } from "@/components/ui/status-badge";
+import {
+  getDoseFailureAlert,
+  getDoseSuccessMessage,
+  getSkipConfirmationCopy,
+} from "@/constants/feedback-copy";
 import { doseService } from "@/services/dose-service";
 import { todayTimelineService } from "@/services/today-timeline-service";
 import { buildDoseTimestamp, TimelineDose } from "@/shared/utils/dose-timeline";
+import { triggerLightHaptic } from "@/utils/haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -67,21 +73,19 @@ export default function CalendarScreen() {
   const confirmSkipDose = (
     medicationName: string,
     onConfirm: () => Promise<void>,
+    scheduledTime?: string,
   ) => {
-    Alert.alert(
-      "Skip dose?",
-      `Mark ${medicationName} as skipped for this slot?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Skip",
-          style: "destructive",
-          onPress: () => {
-            void onConfirm();
-          },
+    const copy = getSkipConfirmationCopy(medicationName, scheduledTime);
+    Alert.alert(copy.title, copy.message, [
+      { text: copy.cancelLabel, style: "cancel" },
+      {
+        text: copy.confirmLabel,
+        style: "destructive",
+        onPress: () => {
+          void onConfirm();
         },
-      ],
-    );
+      },
+    ]);
   };
 
   useFocusEffect(
@@ -122,6 +126,7 @@ export default function CalendarScreen() {
         day,
       );
       const isToday = new Date().toDateString() === date.toDateString();
+      const isSelected = selectedDate.toDateString() === date.toDateString();
       const hasDoses = doseHistory.some(
         (dose) =>
           new Date(dose.timestamp).toDateString() === date.toDateString(),
@@ -132,12 +137,19 @@ export default function CalendarScreen() {
           key={day}
           style={[
             styles.calendarDay,
+            isSelected && styles.selectedDay,
             isToday && styles.today,
             hasDoses && styles.hasEvents,
           ]}
           onPress={() => setSelectedDate(date)}
         >
-          <Text style={[styles.dayText, isToday && styles.todayText]}>
+          <Text
+            style={[
+              styles.dayText,
+              isSelected && styles.selectedDayText,
+              isToday && styles.todayText,
+            ]}
+          >
             {day}
           </Text>
           {hasDoses && <View style={styles.eventDot} />}
@@ -222,23 +234,36 @@ export default function CalendarScreen() {
                   { borderColor: medication.color },
                 ]}
                 onPress={() =>
-                  confirmSkipDose(medication.name, async () => {
-                    if (nextTime) {
-                      await doseService.skipScheduledDose(
-                        medication.id,
-                        nextTime,
-                        timestamp,
-                      );
-                    } else {
-                      await doseService.skipAsNeededDose(
-                        medication.id,
-                        timestamp,
-                      );
-                    }
-                    await loadSelectedDateTimeline(selectedDate);
-                    await loadCalendarHistory();
-                    showFeedback(`Skipped ${medication.name} for this slot`);
-                  })
+                  confirmSkipDose(
+                    medication.name,
+                    async () => {
+                      try {
+                        if (nextTime) {
+                          await doseService.skipScheduledDose(
+                            medication.id,
+                            nextTime,
+                            timestamp,
+                          );
+                        } else {
+                          await doseService.skipAsNeededDose(
+                            medication.id,
+                            timestamp,
+                          );
+                        }
+                        await loadSelectedDateTimeline(selectedDate);
+                        await loadCalendarHistory();
+                        void triggerLightHaptic();
+                        showFeedback(
+                          getDoseSuccessMessage("skip", medication.name),
+                        );
+                      } catch (error) {
+                        console.error("Error skipping dose:", error);
+                        const failure = getDoseFailureAlert("skip");
+                        Alert.alert(failure.title, failure.message);
+                      }
+                    },
+                    nextTime,
+                  )
                 }
               >
                 <Text
@@ -253,21 +278,30 @@ export default function CalendarScreen() {
                   { backgroundColor: medication.color },
                 ]}
                 onPress={async () => {
-                  if (nextTime) {
-                    await doseService.recordScheduledDose(
-                      medication.id,
-                      nextTime,
-                      timestamp,
+                  try {
+                    if (nextTime) {
+                      await doseService.recordScheduledDose(
+                        medication.id,
+                        nextTime,
+                        timestamp,
+                      );
+                    } else {
+                      await doseService.recordAsNeededDose(
+                        medication.id,
+                        timestamp,
+                      );
+                    }
+                    await loadSelectedDateTimeline(selectedDate);
+                    await loadCalendarHistory();
+                    void triggerLightHaptic();
+                    showFeedback(
+                      getDoseSuccessMessage("take", medication.name),
                     );
-                  } else {
-                    await doseService.recordAsNeededDose(
-                      medication.id,
-                      timestamp,
-                    );
+                  } catch (error) {
+                    console.error("Error recording dose:", error);
+                    const failure = getDoseFailureAlert("take");
+                    Alert.alert(failure.title, failure.message);
                   }
-                  await loadSelectedDateTimeline(selectedDate);
-                  await loadCalendarHistory();
-                  showFeedback(`Marked ${medication.name} as taken`);
                 }}
               >
                 <Text style={styles.takeDoseText}>Take</Text>
@@ -532,11 +566,27 @@ const styles = StyleSheet.create({
     color: SkeuoTheme.colors.textPrimary,
   },
   today: {
-    backgroundColor: SkeuoTheme.colors.accentSoft,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.accent,
+    backgroundColor: "rgba(27, 159, 136, 0.08)",
+  },
+  selectedDay: {
+    backgroundColor: SkeuoTheme.colors.accent,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.accentDark,
+    shadowColor: SkeuoTheme.colors.accentDark,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
   },
   todayText: {
     color: SkeuoTheme.colors.accentDark,
     fontWeight: "600",
+  },
+  selectedDayText: {
+    color: SkeuoTheme.colors.white,
+    fontWeight: "700",
   },
   hasEvents: {
     position: "relative",
