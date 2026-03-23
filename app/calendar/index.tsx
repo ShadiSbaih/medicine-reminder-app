@@ -1,91 +1,59 @@
+import { doseService } from "@/services/dose-service";
+import { todayTimelineService } from "@/services/today-timeline-service";
+import { buildDoseTimestamp, TimelineDose } from "@/shared/utils/dose-timeline";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SkeuoTheme } from "../../constants/theme";
-import {
-    DoseHistory,
-    getDoseHistory,
-    getMedications,
-    Medication,
-    recordDose,
-} from "../../utils/storage";
+import { DoseHistory, getDoseHistory } from "../../utils/storage";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-function parseDurationDays(duration: string): number {
-  const normalized = duration.trim().toLowerCase();
-  if (normalized.includes("ongoing")) {
-    return -1;
-  }
-
-  const match = normalized.match(/-?\d+/);
-  if (!match) {
-    return -1;
-  }
-
-  const value = Number(match[0]);
-  return Number.isFinite(value) ? value : -1;
-}
-
-function startOfDay(date: Date): Date {
-  const value = new Date(date);
-  value.setHours(0, 0, 0, 0);
-  return value;
-}
-
-function isMedicationActiveOnDate(medication: Medication, date: Date): boolean {
-  const startDate = startOfDay(new Date(medication.startDate));
-  const targetDate = startOfDay(date);
-  const durationDays = parseDurationDays(medication.duration);
-
-  if (targetDate < startDate) {
-    return false;
-  }
-
-  if (durationDays === -1) {
-    return true;
-  }
-
-  const endDate = new Date(startDate);
-  endDate.setDate(endDate.getDate() + Math.max(durationDays - 1, 0));
-  return targetDate <= endDate;
-}
 
 export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [medications, setMedications] = useState<Medication[]>([]);
   const [doseHistory, setDoseHistory] = useState<DoseHistory[]>([]);
+  const [timelineItems, setTimelineItems] = useState<TimelineDose[]>([]);
 
-  const loadData = useCallback(async () => {
+  const loadCalendarHistory = useCallback(async () => {
     try {
-      const [meds, history] = await Promise.all([
-        getMedications(),
-        getDoseHistory(),
-      ]);
-      setMedications(meds);
+      const history = await getDoseHistory();
       setDoseHistory(history);
     } catch (error) {
       console.error("Error loading calendar data:", error);
     }
   }, []);
 
+  const loadSelectedDateTimeline = useCallback(async (date: Date) => {
+    try {
+      const timeline = await todayTimelineService.getForDate(date);
+      setTimelineItems(timeline.items);
+    } catch (error) {
+      console.error("Error loading selected date timeline:", error);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
-      loadData();
-    }, [loadData]),
+      loadCalendarHistory();
+      loadSelectedDateTimeline(selectedDate);
+    }, [loadCalendarHistory, loadSelectedDateTimeline, selectedDate]),
   );
+
+  useEffect(() => {
+    loadSelectedDateTimeline(selectedDate);
+  }, [loadSelectedDateTimeline, selectedDate]);
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -159,93 +127,104 @@ export default function CalendarScreen() {
   };
 
   const renderMedicationsForDate = () => {
-    const dateStr = selectedDate.toDateString();
-    const dayDoses = doseHistory.filter(
-      (dose) => new Date(dose.timestamp).toDateString() === dateStr,
-    );
+    return todayTimelineService
+      .groupByMedication(timelineItems)
+      .map(({ medication, items }) => {
+        const scheduledTimes = items.map((item) => item.timeLabel);
+        const takenCount = items.filter((item) => item.taken).length;
+        const hasScheduledTimes = items.some((item) =>
+          Boolean(item.scheduledTime),
+        );
+        const allResolved =
+          hasScheduledTimes && items.every((item) => item.isResolved);
 
-    const activeMedications = medications.filter((medication) =>
-      isMedicationActiveOnDate(medication, selectedDate),
-    );
+        const nextDose = items.find((item) => !item.isResolved) ?? items[0];
+        const nextTime = nextDose?.scheduledTime;
+        const timestamp = buildDoseTimestamp(selectedDate, nextTime);
 
-    return activeMedications.map((medication) => {
-      const scheduledTimes = medication.times.length
-        ? medication.times
-        : ["As needed"];
-      const takenCount = scheduledTimes.filter((time) =>
-        dayDoses.some(
-          (dose) =>
-            dose.medicationId === medication.id &&
-            dose.taken &&
-            (time === "As needed" || dose.scheduledTime === time),
-        ),
-      ).length;
-      const allTaken =
-        medication.times.length > 0 && takenCount === medication.times.length;
-
-      const nextTime =
-        medication.times.find(
-          (time) =>
-            !dayDoses.some(
-              (dose) =>
-                dose.medicationId === medication.id &&
-                dose.taken &&
-                dose.scheduledTime === time,
-            ),
-        ) ?? medication.times[0];
-
-      const timestamp = (() => {
-        const result = new Date(selectedDate);
-        if (nextTime) {
-          const [hours, minutes] = nextTime.split(":").map(Number);
-          result.setHours(hours, minutes, 0, 0);
-        } else {
-          result.setHours(new Date().getHours(), new Date().getMinutes(), 0, 0);
-        }
-        return result.toISOString();
-      })();
-
-      return (
-        <View key={medication.id} style={styles.medicationCard}>
-          <View
-            style={[
-              styles.medicationColor,
-              { backgroundColor: medication.color },
-            ]}
-          />
-          <View style={styles.medicationInfo}>
-            <Text style={styles.medicationName}>{medication.name}</Text>
-            <Text style={styles.medicationDosage}>{medication.dosage}</Text>
-            <Text style={styles.medicationTime}>
-              {scheduledTimes.join(" · ")}
-            </Text>
-          </View>
-          {allTaken ? (
-            <View style={styles.takenBadge}>
-              <Ionicons
-                name="checkmark-circle"
-                size={20}
-                color={SkeuoTheme.colors.success}
-              />
-              <Text style={styles.takenText}>Taken {takenCount}</Text>
-            </View>
-          ) : (
-            <TouchableOpacity
+        return (
+          <View key={medication.id} style={styles.medicationCard}>
+            <View
               style={[
-                styles.takeDoseButton,
+                styles.medicationColor,
                 { backgroundColor: medication.color },
               ]}
-              onPress={async () => {
-                await recordDose(medication.id, true, timestamp, nextTime);
-                loadData();
-              }}
-            >
-              <Text style={styles.takeDoseText}>Take</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      );
-    });
+            />
+            <View style={styles.medicationInfo}>
+              <Text style={styles.medicationName}>{medication.name}</Text>
+              <Text style={styles.medicationDosage}>{medication.dosage}</Text>
+              <Text style={styles.medicationTime}>
+                {scheduledTimes.join(" · ")}
+              </Text>
+            </View>
+            {allResolved ? (
+              <View style={styles.takenBadge}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={20}
+                  color={SkeuoTheme.colors.success}
+                />
+                <Text style={styles.takenText}>Resolved {takenCount}</Text>
+              </View>
+            ) : (
+              <View style={styles.doseActionsRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.skipDoseButton,
+                    { borderColor: medication.color },
+                  ]}
+                  onPress={async () => {
+                    if (nextTime) {
+                      await doseService.skipScheduledDose(
+                        medication.id,
+                        nextTime,
+                        timestamp,
+                      );
+                    } else {
+                      await doseService.skipAsNeededDose(
+                        medication.id,
+                        timestamp,
+                      );
+                    }
+                    await loadSelectedDateTimeline(selectedDate);
+                    await loadCalendarHistory();
+                  }}
+                >
+                  <Text
+                    style={[styles.skipDoseText, { color: medication.color }]}
+                  >
+                    Skip
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.takeDoseButton,
+                    { backgroundColor: medication.color },
+                  ]}
+                  onPress={async () => {
+                    if (nextTime) {
+                      await doseService.recordScheduledDose(
+                        medication.id,
+                        nextTime,
+                        timestamp,
+                      );
+                    } else {
+                      await doseService.recordAsNeededDose(
+                        medication.id,
+                        timestamp,
+                      );
+                    }
+                    await loadSelectedDateTimeline(selectedDate);
+                    await loadCalendarHistory();
+                  }}
+                >
+                  <Text style={styles.takeDoseText}>Take</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        );
+      });
   };
 
   return (
@@ -523,6 +502,22 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 15,
     borderRadius: 12,
+  },
+  doseActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  skipDoseButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+  },
+  skipDoseText: {
+    fontWeight: "600",
+    fontSize: 14,
   },
   takeDoseText: {
     color: "white",

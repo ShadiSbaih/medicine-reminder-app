@@ -12,7 +12,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { SkeuoTheme } from "../constants/theme";
+import { SkeuoTheme } from "../../constants/theme";
 
 const { width } = Dimensions.get("window");
 
@@ -109,7 +109,7 @@ export default function AuthScreen() {
         >
           <View style={styles.iconContainer}>
             <Image
-              source={require("../assets/images/splash_logo.png")}
+              source={require("../../assets/images/splash_logo.png")}
               style={styles.brandLogo}
               resizeMode="contain"
             />

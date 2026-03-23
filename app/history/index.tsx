@@ -4,36 +4,36 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-  Alert,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SkeuoTheme } from "../../constants/theme";
 import {
-  DoseHistory,
-  Medication,
-  clearAllData,
-  getDoseHistory,
-  getMedications,
+    DoseHistory,
+    Medication,
+    clearAllData,
+    getDoseHistory,
+    getDoseStatus,
+    getMedications,
 } from "../../utils/storage";
 
 type EnrichedDoseHistory = DoseHistory & { medication?: Medication };
 type TimeFilter = "all" | "today" | "7d" | "30d";
+type StatusFilter = "all" | "taken" | "missed" | "skipped";
 
 export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [history, setHistory] = useState<EnrichedDoseHistory[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState<
-    "all" | "taken" | "missed"
-  >("all");
+  const [selectedFilter, setSelectedFilter] = useState<StatusFilter>("all");
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -103,8 +103,11 @@ export default function HistoryScreen() {
       if (!isInTimeWindow) return false;
 
       if (selectedFilter === "all") return true;
-      if (selectedFilter === "taken") return dose.taken;
-      if (selectedFilter === "missed") return !dose.taken;
+      if (selectedFilter === "taken") return getDoseStatus(dose) === "taken";
+      if (selectedFilter === "missed") return getDoseStatus(dose) === "missed";
+      if (selectedFilter === "skipped") {
+        return getDoseStatus(dose) === "skipped";
+      }
       return true;
     })
     .filter((dose) => {
@@ -123,8 +126,15 @@ export default function HistoryScreen() {
 
   const groupedHistory = groupHistoryByDate(filteredHistory);
   const totalCount = filteredHistory.length;
-  const takenCount = filteredHistory.filter((dose) => dose.taken).length;
-  const missedCount = totalCount - takenCount;
+  const takenCount = filteredHistory.filter(
+    (dose) => getDoseStatus(dose) === "taken",
+  ).length;
+  const missedCount = filteredHistory.filter(
+    (dose) => getDoseStatus(dose) === "missed",
+  ).length;
+  const skippedCount = filteredHistory.filter(
+    (dose) => getDoseStatus(dose) === "skipped",
+  ).length;
 
   const handleRefresh = useCallback(async () => {
     try {
@@ -244,6 +254,22 @@ export default function HistoryScreen() {
                 Missed
               </Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.filterButton,
+                selectedFilter === "skipped" && styles.filterButtonActive,
+              ]}
+              onPress={() => setSelectedFilter("skipped")}
+            >
+              <Text
+                style={[
+                  styles.filterText,
+                  selectedFilter === "skipped" && styles.filterTextActive,
+                ]}
+              >
+                Skipped
+              </Text>
+            </TouchableOpacity>
           </ScrollView>
 
           <View style={styles.searchRow}>
@@ -321,6 +347,14 @@ export default function HistoryScreen() {
               Missed
             </Text>
           </View>
+          <View style={[styles.summaryCard, styles.summaryCardSkipped]}>
+            <Text style={[styles.summaryValue, styles.summaryValueSkipped]}>
+              {skippedCount}
+            </Text>
+            <Text style={[styles.summaryLabel, styles.summaryLabelSkipped]}>
+              Skipped
+            </Text>
+          </View>
         </View>
 
         <ScrollView
@@ -391,7 +425,7 @@ export default function HistoryScreen() {
                     )}
                   </View>
                   <View style={styles.statusContainer}>
-                    {dose.taken ? (
+                    {getDoseStatus(dose) === "taken" && (
                       <View
                         style={[
                           styles.statusBadge,
@@ -412,7 +446,8 @@ export default function HistoryScreen() {
                           Taken
                         </Text>
                       </View>
-                    ) : (
+                    )}
+                    {getDoseStatus(dose) === "missed" && (
                       <View
                         style={[
                           styles.statusBadge,
@@ -431,6 +466,28 @@ export default function HistoryScreen() {
                           ]}
                         >
                           Missed
+                        </Text>
+                      </View>
+                    )}
+                    {getDoseStatus(dose) === "skipped" && (
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          { backgroundColor: SkeuoTheme.colors.neutralSurface },
+                        ]}
+                      >
+                        <Ionicons
+                          name="play-skip-forward-circle"
+                          size={16}
+                          color={SkeuoTheme.colors.textSecondary}
+                        />
+                        <Text
+                          style={[
+                            styles.statusText,
+                            { color: SkeuoTheme.colors.textSecondary },
+                          ]}
+                        >
+                          Skipped
                         </Text>
                       </View>
                     )}
@@ -602,6 +659,9 @@ const styles = StyleSheet.create({
   summaryCardMissed: {
     backgroundColor: SkeuoTheme.colors.dangerSurface,
   },
+  summaryCardSkipped: {
+    backgroundColor: SkeuoTheme.colors.neutralSurface,
+  },
   summaryValue: {
     fontSize: 18,
     fontWeight: "700",
@@ -612,6 +672,9 @@ const styles = StyleSheet.create({
   },
   summaryValueMissed: {
     color: SkeuoTheme.colors.danger,
+  },
+  summaryValueSkipped: {
+    color: SkeuoTheme.colors.textSecondary,
   },
   summaryLabel: {
     marginTop: 2,
@@ -624,6 +687,9 @@ const styles = StyleSheet.create({
   },
   summaryLabelMissed: {
     color: SkeuoTheme.colors.danger,
+  },
+  summaryLabelSkipped: {
+    color: SkeuoTheme.colors.textSecondary,
   },
   emptyState: {
     backgroundColor: SkeuoTheme.colors.cardBackground,

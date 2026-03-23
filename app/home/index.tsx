@@ -1,37 +1,37 @@
+import { doseService } from "@/services/dose-service";
+import { todayTimelineService } from "@/services/today-timeline-service";
+import { TimelineDose } from "@/shared/utils/dose-timeline";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Link } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-    Alert,
-    Animated,
-    AppState,
-    Dimensions,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Animated,
+  AppState,
+  Dimensions,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
-import { SkeuoTheme } from "../constants/theme";
+import { SkeuoTheme } from "../../constants/theme";
 import {
-    registerForPushNotificationsAsync,
-    updateMedicationReminders,
-} from "../utils/notifications";
+  registerForPushNotificationsAsync,
+  updateMedicationReminders,
+} from "../../utils/notifications";
 import {
-    DoseHistory,
-    getMedications,
-    getReadNotificationIds,
-    getTodaysDoses,
-    markNotificationAsRead,
-    markNotificationsAsRead,
-    Medication,
-    recordDose,
-} from "../utils/storage";
+  getMedications,
+  getReadNotificationIds,
+  markNotificationAsRead,
+  markNotificationsAsRead,
+  Medication,
+} from "../../utils/storage";
 
 const { width } = Dimensions.get("window");
 
@@ -75,55 +75,10 @@ interface CircularProgressProps {
   completedDoses: number;
 }
 
-interface ScheduledDose {
-  id: string;
-  medication: Medication;
-  scheduledTime?: string;
-  timeLabel: string;
-}
+type ScheduledDose = TimelineDose;
 
 interface NotificationItem extends ScheduledDose {
   isRead: boolean;
-  isOverdue: boolean;
-}
-
-function parseDurationDays(duration: string): number {
-  const normalized = duration.trim().toLowerCase();
-  if (normalized.includes("ongoing")) {
-    return -1;
-  }
-
-  const match = normalized.match(/-?\d+/);
-  if (!match) {
-    return -1;
-  }
-
-  const value = Number(match[0]);
-  return Number.isFinite(value) ? value : -1;
-}
-
-function startOfDay(date: Date): Date {
-  const value = new Date(date);
-  value.setHours(0, 0, 0, 0);
-  return value;
-}
-
-function isMedicationActiveOnDate(medication: Medication, date: Date): boolean {
-  const startDate = startOfDay(new Date(medication.startDate));
-  const targetDate = startOfDay(date);
-  const durationDays = parseDurationDays(medication.duration);
-
-  if (targetDate < startDate) {
-    return false;
-  }
-
-  if (durationDays === -1) {
-    return true;
-  }
-
-  const endDate = new Date(startDate);
-  endDate.setDate(endDate.getDate() + Math.max(durationDays - 1, 0));
-  return targetDate <= endDate;
 }
 
 function CircularProgress({
@@ -191,52 +146,19 @@ export default function HomeScreen() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [scheduledDoses, setScheduledDoses] = useState<ScheduledDose[]>([]);
   const [completedDoses, setCompletedDoses] = useState(0);
-  const [doseHistory, setDoseHistory] = useState<DoseHistory[]>([]);
+  const [totalScheduledDoses, setTotalScheduledDoses] = useState(0);
+  const [overdueCount, setOverdueCount] = useState(0);
+  const [nextDueDose, setNextDueDose] = useState<ScheduledDose | undefined>();
   const [readNotificationIds, setReadNotificationIds] = useState<string[]>([]);
 
-  const loadMedications = useCallback(async () => {
+  const loadTimeline = useCallback(async () => {
     try {
-      const [allMedications, todaysDoses] = await Promise.all([
-        getMedications(),
-        getTodaysDoses(),
-      ]);
-
-      setDoseHistory(todaysDoses);
-
-      // Filter medications for today
-      const today = new Date();
-      const todayMeds = allMedications.filter((med) =>
-        isMedicationActiveOnDate(med, today),
-      );
-
-      const todaySchedule = todayMeds.flatMap((medication) => {
-        if (!medication.times.length) {
-          return [
-            {
-              id: `${medication.id}-as-needed`,
-              medication,
-              timeLabel: "As needed",
-            },
-          ];
-        }
-        return medication.times.map((time) => ({
-          id: `${medication.id}-${time}`,
-          medication,
-          scheduledTime: time,
-          timeLabel: time,
-        }));
-      });
-
-      setScheduledDoses(todaySchedule);
-
-      const uniqueCompletedSchedule = new Set(
-        todaysDoses
-          .filter((dose) => dose.taken && dose.scheduledTime)
-          .map((dose) => `${dose.medicationId}-${dose.scheduledTime}`),
-      );
-
-      const completed = uniqueCompletedSchedule.size;
-      setCompletedDoses(completed);
+      const timeline = await todayTimelineService.getForToday();
+      setScheduledDoses(timeline.items);
+      setCompletedDoses(timeline.completedScheduled);
+      setTotalScheduledDoses(timeline.totalScheduled);
+      setOverdueCount(timeline.overdueCount);
+      setNextDueDose(timeline.nextDueDose);
     } catch (error) {
       console.error("Error loading medications:", error);
     }
@@ -264,20 +186,20 @@ export default function HomeScreen() {
 
   // Use useEffect for initial load
   useEffect(() => {
-    loadMedications();
+    loadTimeline();
     setupNotifications();
 
     // Handle app state changes for notifications
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       if (nextAppState === "active") {
-        loadMedications();
+        loadTimeline();
       }
     });
 
     return () => {
       subscription.remove();
     };
-  }, [loadMedications, setupNotifications]);
+  }, [loadTimeline, setupNotifications]);
 
   const todayKey = new Date().toISOString().slice(0, 10);
 
@@ -293,10 +215,10 @@ export default function HomeScreen() {
         // Cleanup if needed
       };
 
-      loadMedications();
+      loadTimeline();
       loadReadNotifications();
       return () => unsubscribe();
-    }, [loadMedications, loadReadNotifications]),
+    }, [loadTimeline, loadReadNotifications]),
   );
 
   const handleTakeDose = async (
@@ -304,88 +226,40 @@ export default function HomeScreen() {
     scheduledTime?: string,
   ) => {
     try {
-      await recordDose(
-        medication.id,
-        true,
-        new Date().toISOString(),
-        scheduledTime,
-      );
-      await loadMedications(); // Reload data after recording dose
+      if (scheduledTime) {
+        await doseService.recordScheduledDose(medication.id, scheduledTime);
+      } else {
+        await doseService.recordAsNeededDose(medication.id);
+      }
+      await loadTimeline(); // Reload timeline after recording dose
     } catch (error) {
       console.error("Error recording dose:", error);
       Alert.alert("Error", "Failed to record dose. Please try again.");
     }
   };
 
-  const isDoseTaken = (medicationId: string, scheduledTime?: string) => {
-    return doseHistory.some(
-      (dose) =>
-        dose.medicationId === medicationId &&
-        dose.taken &&
-        (!scheduledTime || dose.scheduledTime === scheduledTime),
-    );
-  };
-
-  const totalScheduledDoses = scheduledDoses.filter((dose) =>
-    Boolean(dose.scheduledTime),
-  ).length;
-
-  const timeToTodayDate = (time: string) => {
-    const [hours, minutes] = time.split(":").map(Number);
-    const date = new Date();
-    date.setHours(hours, minutes, 0, 0);
-    return date;
-  };
-
-  const scheduledDosesSorted = [...scheduledDoses].sort((a, b) => {
-    if (!a.scheduledTime && !b.scheduledTime) return 0;
-    if (!a.scheduledTime) return 1;
-    if (!b.scheduledTime) return -1;
-    return (
-      timeToTodayDate(a.scheduledTime).getTime() -
-      timeToTodayDate(b.scheduledTime).getTime()
-    );
-  });
-
-  const pendingScheduledDoses = scheduledDosesSorted.filter(
-    (dose) =>
-      dose.scheduledTime &&
-      !isDoseTaken(dose.medication.id, dose.scheduledTime),
-  );
-
-  const now = new Date();
-  const overdueCount = pendingScheduledDoses.filter(
-    (dose) => dose.scheduledTime && timeToTodayDate(dose.scheduledTime) < now,
-  ).length;
-
-  const nextUpcomingDose = pendingScheduledDoses.find(
-    (dose) => dose.scheduledTime && timeToTodayDate(dose.scheduledTime) >= now,
-  );
-
-  const nextDueDose = nextUpcomingDose ?? pendingScheduledDoses[0];
-
-  const notificationItems: NotificationItem[] = scheduledDosesSorted.map(
-    (dose) => {
-      if (!dose.scheduledTime) {
-        return {
-          ...dose,
-          isRead: true,
-          isOverdue: false,
-        };
+  const handleSkipDose = async (
+    medication: Medication,
+    scheduledTime?: string,
+  ) => {
+    try {
+      if (scheduledTime) {
+        await doseService.skipScheduledDose(medication.id, scheduledTime);
+      } else {
+        await doseService.skipAsNeededDose(medication.id);
       }
+      await loadTimeline();
+    } catch (error) {
+      console.error("Error skipping dose:", error);
+      Alert.alert("Error", "Failed to skip dose. Please try again.");
+    }
+  };
 
-      const taken = isDoseTaken(dose.medication.id, dose.scheduledTime);
-      const isOverdue =
-        Boolean(dose.scheduledTime) &&
-        !taken &&
-        timeToTodayDate(dose.scheduledTime as string) < now;
-      return {
-        ...dose,
-        isRead: taken || readNotificationIds.includes(dose.id),
-        isOverdue,
-      };
-    },
-  );
+  const notificationItems: NotificationItem[] =
+    todayTimelineService.getNotificationReadState(
+      scheduledDoses,
+      readNotificationIds,
+    );
 
   const unreadNotificationCount = notificationItems.filter(
     (item) => !item.isRead && Boolean(item.scheduledTime),
@@ -494,6 +368,17 @@ export default function HomeScreen() {
                 >
                   <Text style={styles.focusActionText}>Mark as Taken</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.focusSkipButton}
+                  onPress={() =>
+                    handleSkipDose(
+                      nextDueDose.medication,
+                      nextDueDose.scheduledTime,
+                    )
+                  }
+                >
+                  <Text style={styles.focusSkipText}>Skip</Text>
+                </TouchableOpacity>
               </>
             ) : (
               <>
@@ -564,13 +449,11 @@ export default function HomeScreen() {
               </Link>
             </View>
           ) : (
-            scheduledDosesSorted.map((doseItem) => {
+            scheduledDoses.map((doseItem) => {
               const { medication, scheduledTime, timeLabel } = doseItem;
-              const taken = isDoseTaken(medication.id, scheduledTime);
-              const isOverdue =
-                Boolean(scheduledTime) &&
-                !taken &&
-                timeToTodayDate(scheduledTime as string) < now;
+              const taken = doseItem.taken;
+              const isOverdue = doseItem.isOverdue;
+              const isSkipped = doseItem.status === "skipped";
               return (
                 <View key={doseItem.id} style={styles.doseCard}>
                   <View
@@ -598,7 +481,7 @@ export default function HomeScreen() {
                       />
                       <Text style={styles.timeText}>{timeLabel}</Text>
                     </View>
-                    {!taken && (
+                    {!doseItem.isResolved && (
                       <Text style={styles.scheduleStateText}>
                         {scheduledTime
                           ? isOverdue
@@ -617,18 +500,49 @@ export default function HomeScreen() {
                       />
                       <Text style={styles.takenText}>Taken</Text>
                     </View>
+                  ) : isSkipped ? (
+                    <View style={styles.skippedBadge}>
+                      <Ionicons
+                        name="play-skip-forward-circle"
+                        size={20}
+                        color={SkeuoTheme.colors.textSecondary}
+                      />
+                      <Text style={styles.skippedText}>Skipped</Text>
+                    </View>
                   ) : (
-                    <TouchableOpacity
-                      style={[
-                        styles.takeDoseButton,
-                        { backgroundColor: medication.color },
-                      ]}
-                      onPress={() => handleTakeDose(medication, scheduledTime)}
-                    >
-                      <Text style={styles.takeDoseText}>
-                        {scheduledTime ? "Take" : "Log"}
-                      </Text>
-                    </TouchableOpacity>
+                    <View style={styles.doseActionsRow}>
+                      <TouchableOpacity
+                        style={[
+                          styles.skipDoseButton,
+                          { borderColor: medication.color },
+                        ]}
+                        onPress={() =>
+                          handleSkipDose(medication, scheduledTime)
+                        }
+                      >
+                        <Text
+                          style={[
+                            styles.skipDoseText,
+                            { color: medication.color },
+                          ]}
+                        >
+                          Skip
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.takeDoseButton,
+                          { backgroundColor: medication.color },
+                        ]}
+                        onPress={() =>
+                          handleTakeDose(medication, scheduledTime)
+                        }
+                      >
+                        <Text style={styles.takeDoseText}>
+                          {scheduledTime ? "Take" : "Log"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   )}
                 </View>
               );
@@ -832,6 +746,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
+  focusSkipButton: {
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.accent,
+    borderRadius: SkeuoTheme.radius.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginTop: 8,
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+  },
+  focusSkipText: {
+    color: SkeuoTheme.colors.accentDark,
+    fontSize: 13,
+    fontWeight: "700",
+  },
   quickActionsContainer: {
     paddingHorizontal: 20,
     marginBottom: 25,
@@ -946,12 +875,42 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 15,
     borderRadius: 15,
+  },
+  doseActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
     marginLeft: 10,
+    gap: 8,
+  },
+  skipDoseButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 15,
+    borderWidth: 1,
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+  },
+  skipDoseText: {
+    fontWeight: "600",
+    fontSize: 14,
   },
   takeDoseText: {
     color: "white",
     fontWeight: "600",
     fontSize: 14,
+  },
+  skippedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: SkeuoTheme.colors.neutralSurface,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: SkeuoTheme.radius.pill,
+  },
+  skippedText: {
+    color: SkeuoTheme.colors.textSecondary,
+    fontWeight: "600",
+    fontSize: 14,
+    marginLeft: 4,
   },
   progressContainer: {
     alignItems: "center",

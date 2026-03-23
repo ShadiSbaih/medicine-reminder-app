@@ -1,8 +1,9 @@
+import { medicationService } from "@/services/medication-service";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     Alert,
     Dimensions,
@@ -17,17 +18,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SkeuoTheme } from "../../constants/theme";
-import {
-    cancelMedicationReminders,
-    sendMedicationAddedNotification,
-    updateMedicationReminders,
-} from "../../utils/notifications";
-import {
-    addMedication,
-    deleteMedication,
-    getMedications,
-    updateMedication,
-} from "../../utils/storage";
 
 const { width } = Dimensions.get("window");
 
@@ -56,7 +46,12 @@ const FREQUENCIES = [
     icon: "repeat-outline" as const,
     times: ["09:00", "13:00", "17:00", "21:00"],
   },
-  { id: "5", label: "As needed", icon: "calendar-outline" as const, times: [] },
+  {
+    id: "5",
+    label: "As needed",
+    icon: "calendar-outline" as const,
+    times: [],
+  },
 ];
 
 const DURATIONS = [
@@ -67,12 +62,37 @@ const DURATIONS = [
   { id: "5", label: "Ongoing", value: -1 },
 ];
 
+const WIZARD_STEPS = ["Basic", "Schedule", "Reminders"];
+
+type FormState = {
+  name: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  startDate: Date;
+  times: string[];
+  notes: string;
+  reminderEnabled: boolean;
+  refillReminder: boolean;
+  currentSupply: string;
+  refillAt: string;
+};
+
+type FormErrors = Record<string, string>;
+
+function formatTime(date: Date): string {
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
 export default function AddMedicationScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { medicationId } = useLocalSearchParams<{ medicationId?: string }>();
   const isEditMode = Boolean(medicationId);
-  const [form, setForm] = useState({
+
+  const [form, setForm] = useState<FormState>({
     name: "",
     dosage: "",
     frequency: "",
@@ -86,12 +106,13 @@ export default function AddMedicationScreen() {
     refillAt: "",
   });
 
-  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [errors, setErrors] = useState<FormErrors>({});
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedFrequency, setSelectedFrequency] = useState("");
   const [selectedDuration, setSelectedDuration] = useState("");
   const [selectedTimeIndex, setSelectedTimeIndex] = useState(0);
+  const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationIssues, setValidationIssues] = useState<string[]>([]);
   const [showValidationModal, setShowValidationModal] = useState(false);
@@ -102,8 +123,7 @@ export default function AddMedicationScreen() {
     if (!isEditMode || !medicationId) return;
 
     const loadMedicationForEdit = async () => {
-      const medications = await getMedications();
-      const existing = medications.find((med) => med.id === medicationId);
+      const existing = await medicationService.getById(medicationId);
       if (!existing) {
         Alert.alert("Not found", "Medication was not found.", [
           { text: "OK", onPress: () => router.back() },
@@ -139,72 +159,125 @@ export default function AddMedicationScreen() {
     loadMedicationForEdit();
   }, [isEditMode, medicationId, router]);
 
-  const buildValidationIssues = (newErrors: { [key: string]: string }) => {
-    const entries = Object.entries(newErrors);
-    if (entries.length === 0) return [];
-    return entries.map(([, value]) => value);
-  };
+  const stepDescription = useMemo(() => {
+    if (currentStep === 0) return "Medication identity";
+    if (currentStep === 1) return "Frequency and times";
+    return "Alerts, stock, and notes";
+  }, [currentStep]);
 
-  const validateForm = () => {
-    const newErrors: { [key: string]: string } = {};
+  const buildValidationErrors = (state: FormState): FormErrors => {
+    const newErrors: FormErrors = {};
 
-    if (!form.name.trim()) {
+    if (!state.name.trim()) {
       newErrors.name = "Medication name is required";
     }
 
-    if (!form.dosage.trim()) {
+    if (!state.dosage.trim()) {
       newErrors.dosage = "Dosage is required";
     }
 
-    if (!form.frequency) {
+    if (!state.frequency) {
       newErrors.frequency = "Frequency is required";
     }
 
-    if (!form.duration) {
+    if (!state.duration) {
       newErrors.duration = "Duration is required";
     }
 
-    if (form.refillReminder) {
-      if (!form.currentSupply) {
+    if (state.frequency !== "As needed" && state.times.length === 0) {
+      newErrors.times = "At least one dose time is required";
+    }
+
+    if (state.refillReminder) {
+      if (!state.currentSupply) {
         newErrors.currentSupply =
           "Current supply is required for refill tracking";
       }
-      if (!form.refillAt) {
+      if (!state.refillAt) {
         newErrors.refillAt = "Refill alert threshold is required";
       }
-      if (Number(form.currentSupply) <= 0) {
+      if (Number(state.currentSupply) <= 0) {
         newErrors.currentSupply = "Current supply must be greater than zero";
       }
-      if (Number(form.refillAt) < 0) {
+      if (Number(state.refillAt) < 0) {
         newErrors.refillAt = "Refill alert must be zero or greater";
       }
       if (
-        Number(form.currentSupply) > 0 &&
-        Number(form.refillAt) >= Number(form.currentSupply)
+        Number(state.currentSupply) > 0 &&
+        Number(state.refillAt) >= Number(state.currentSupply)
       ) {
         newErrors.refillAt = "Refill alert must be less than current supply";
       }
     }
 
-    setErrors(newErrors);
-    const issues = buildValidationIssues(newErrors);
+    return newErrors;
+  };
+
+  const validateForStep = (step: number): boolean => {
+    const allErrors = buildValidationErrors(form);
+    const stepFields =
+      step === 0
+        ? ["name", "dosage"]
+        : step === 1
+          ? ["frequency", "duration", "times"]
+          : ["currentSupply", "refillAt"];
+
+    const stepErrors = Object.fromEntries(
+      Object.entries(allErrors).filter(([key]) => stepFields.includes(key)),
+    );
+
+    setErrors(allErrors);
+
+    const issues = Object.values(stepErrors);
     setValidationIssues(issues);
     setShowValidationModal(issues.length > 0);
-    return Object.keys(newErrors).length === 0;
+
+    return issues.length === 0;
+  };
+
+  const validateAll = (): boolean => {
+    const allErrors = buildValidationErrors(form);
+    setErrors(allErrors);
+    const issues = Object.values(allErrors);
+    setValidationIssues(issues);
+    setShowValidationModal(issues.length > 0);
+    return issues.length === 0;
+  };
+
+  const handleFrequencySelect = (freq: string) => {
+    setSelectedFrequency(freq);
+    const selectedFreq = FREQUENCIES.find((f) => f.label === freq);
+    setForm((prev) => ({
+      ...prev,
+      frequency: freq,
+      times: selectedFreq?.times ? [...selectedFreq.times] : [],
+    }));
+  };
+
+  const handleDurationSelect = (dur: string) => {
+    setSelectedDuration(dur);
+    setForm((prev) => ({ ...prev, duration: dur }));
+  };
+
+  const handleAddTime = () => {
+    setForm((prev) => ({ ...prev, times: [...prev.times, "09:00"] }));
+  };
+
+  const handleRemoveTime = (index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      times: prev.times.filter((_, i) => i !== index),
+    }));
   };
 
   const handleSave = async () => {
     try {
-      if (!validateForm()) {
+      if (!validateAll()) {
         return;
       }
 
       if (isSubmitting) return;
       setIsSubmitting(true);
-
-      // Generate a random color
-      const colors = ["#2DB19A", "#1B9F88", "#0F7267", "#177C71", "#2A9B82"];
-      const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
       const medicationData = {
         id:
@@ -222,21 +295,17 @@ export default function AddMedicationScreen() {
             : 0,
         refillAt: form.refillAt ? Number(form.refillAt) : 0,
         startDate: form.startDate.toISOString(),
-        color: isEditMode ? loadedMedicationColor : randomColor,
+        color: loadedMedicationColor,
       };
 
       if (isEditMode) {
-        await updateMedication(medicationData);
+        await medicationService.update(medicationData);
       } else {
-        await addMedication(medicationData);
-        await sendMedicationAddedNotification(medicationData);
-      }
-
-      // Schedule reminders with deduplication safety
-      if (medicationData.reminderEnabled || medicationData.refillReminder) {
-        await updateMedicationReminders(medicationData);
-      } else if (isEditMode) {
-        await cancelMedicationReminders(medicationData.id);
+        await medicationService.create({
+          ...medicationData,
+          id: undefined,
+          color: undefined,
+        });
       }
 
       Alert.alert(
@@ -244,12 +313,7 @@ export default function AddMedicationScreen() {
         isEditMode
           ? "Medication updated successfully"
           : "Medication added successfully",
-        [
-          {
-            text: "OK",
-            onPress: () => router.back(),
-          },
-        ],
+        [{ text: "OK", onPress: () => router.back() }],
         { cancelable: false },
       );
     } catch (error) {
@@ -262,27 +326,6 @@ export default function AddMedicationScreen() {
       );
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleFrequencySelect = (freq: string) => {
-    setSelectedFrequency(freq);
-    const selectedFreq = FREQUENCIES.find((f) => f.label === freq);
-    setForm((prev) => ({
-      ...prev,
-      frequency: freq,
-      times: selectedFreq?.times || [],
-    }));
-    if (errors.frequency) {
-      setErrors((prev) => ({ ...prev, frequency: "" }));
-    }
-  };
-
-  const handleDurationSelect = (dur: string) => {
-    setSelectedDuration(dur);
-    setForm((prev) => ({ ...prev, duration: dur }));
-    if (errors.duration) {
-      setErrors((prev) => ({ ...prev, duration: "" }));
     }
   };
 
@@ -299,8 +342,7 @@ export default function AddMedicationScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await cancelMedicationReminders(medicationId);
-              await deleteMedication(medicationId);
+              await medicationService.remove(medicationId);
               Alert.alert("Deleted", "Medication deleted successfully", [
                 { text: "OK", onPress: () => router.back() },
               ]);
@@ -314,8 +356,54 @@ export default function AddMedicationScreen() {
     );
   };
 
-  const renderFrequencyOptions = () => {
-    return (
+  const handlePrimaryAction = () => {
+    if (currentStep < WIZARD_STEPS.length - 1) {
+      if (validateForStep(currentStep)) {
+        setCurrentStep((prev) => prev + 1);
+      }
+      return;
+    }
+    handleSave();
+  };
+
+  const renderStepBasic = () => (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Basic Info</Text>
+      <View style={styles.inputContainer}>
+        <TextInput
+          style={[styles.mainInput, errors.name && styles.inputError]}
+          placeholder="Medication Name"
+          placeholderTextColor={SkeuoTheme.colors.textTertiary}
+          value={form.name}
+          onChangeText={(text) => {
+            setForm((prev) => ({ ...prev, name: text }));
+          }}
+        />
+      </View>
+      {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
+
+      <View style={styles.inputContainer}>
+        <TextInput
+          style={[styles.mainInput, errors.dosage && styles.inputError]}
+          placeholder="Dosage (e.g., 500mg)"
+          placeholderTextColor={SkeuoTheme.colors.textTertiary}
+          value={form.dosage}
+          onChangeText={(text) => {
+            setForm((prev) => ({ ...prev, dosage: text }));
+          }}
+        />
+      </View>
+      {errors.dosage && <Text style={styles.errorText}>{errors.dosage}</Text>}
+    </View>
+  );
+
+  const renderStepSchedule = () => (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Schedule</Text>
+      {errors.frequency && (
+        <Text style={styles.errorText}>{errors.frequency}</Text>
+      )}
+
       <View style={styles.optionsGrid}>
         {FREQUENCIES.map((freq) => (
           <TouchableOpacity
@@ -324,9 +412,7 @@ export default function AddMedicationScreen() {
               styles.optionCard,
               selectedFrequency === freq.label && styles.selectedOptionCard,
             ]}
-            onPress={() => {
-              handleFrequencySelect(freq.label);
-            }}
+            onPress={() => handleFrequencySelect(freq.label)}
           >
             <View
               style={[
@@ -336,10 +422,10 @@ export default function AddMedicationScreen() {
             >
               <Ionicons
                 name={freq.icon}
-                size={24}
+                size={22}
                 color={
                   selectedFrequency === freq.label
-                    ? "white"
+                    ? SkeuoTheme.colors.white
                     : SkeuoTheme.colors.textSecondary
                 }
               />
@@ -355,11 +441,11 @@ export default function AddMedicationScreen() {
           </TouchableOpacity>
         ))}
       </View>
-    );
-  };
 
-  const renderDurationOptions = () => {
-    return (
+      <Text style={styles.sectionTitle}>Duration</Text>
+      {errors.duration && (
+        <Text style={styles.errorText}>{errors.duration}</Text>
+      )}
       <View style={styles.optionsGrid}>
         {DURATIONS.map((dur) => (
           <TouchableOpacity
@@ -368,9 +454,7 @@ export default function AddMedicationScreen() {
               styles.optionCard,
               selectedDuration === dur.label && styles.selectedOptionCard,
             ]}
-            onPress={() => {
-              handleDurationSelect(dur.label);
-            }}
+            onPress={() => handleDurationSelect(dur.label)}
           >
             <Text
               style={[
@@ -391,8 +475,247 @@ export default function AddMedicationScreen() {
           </TouchableOpacity>
         ))}
       </View>
-    );
-  };
+
+      <TouchableOpacity
+        style={styles.dateButton}
+        onPress={() => setShowDatePicker(true)}
+      >
+        <View style={styles.dateIconContainer}>
+          <Ionicons
+            name="calendar"
+            size={20}
+            color={SkeuoTheme.colors.accentDark}
+          />
+        </View>
+        <Text style={styles.dateButtonText}>
+          Starts {form.startDate.toLocaleDateString()}
+        </Text>
+        <Ionicons
+          name="chevron-forward"
+          size={20}
+          color={SkeuoTheme.colors.textSecondary}
+        />
+      </TouchableOpacity>
+
+      {showDatePicker && (
+        <DateTimePicker
+          value={form.startDate}
+          mode="date"
+          onChange={(_, date) => {
+            setShowDatePicker(false);
+            if (date) setForm((prev) => ({ ...prev, startDate: date }));
+          }}
+        />
+      )}
+
+      {form.frequency !== "As needed" && (
+        <View style={styles.timesContainer}>
+          <View style={styles.timeHeaderRow}>
+            <Text style={styles.timesTitle}>Dose Times</Text>
+            <TouchableOpacity
+              style={styles.addTimeButton}
+              onPress={handleAddTime}
+            >
+              <Ionicons name="add" size={16} color={SkeuoTheme.colors.white} />
+              <Text style={styles.addTimeButtonText}>Add Time</Text>
+            </TouchableOpacity>
+          </View>
+
+          {errors.times && <Text style={styles.errorText}>{errors.times}</Text>}
+
+          {form.times.map((time, index) => (
+            <View key={`${time}-${index}`} style={styles.timeRow}>
+              <TouchableOpacity
+                style={styles.timeButton}
+                onPress={() => {
+                  setSelectedTimeIndex(index);
+                  setShowTimePicker(true);
+                }}
+              >
+                <View style={styles.timeIconContainer}>
+                  <Ionicons
+                    name="time-outline"
+                    size={20}
+                    color={SkeuoTheme.colors.accentDark}
+                  />
+                </View>
+                <Text style={styles.timeButtonText}>{time}</Text>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={SkeuoTheme.colors.textSecondary}
+                />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.removeTimeButton,
+                  form.times.length <= 1 && styles.removeTimeButtonDisabled,
+                ]}
+                disabled={form.times.length <= 1}
+                onPress={() => handleRemoveTime(index)}
+              >
+                <Ionicons
+                  name="trash-outline"
+                  size={16}
+                  color={SkeuoTheme.colors.danger}
+                />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {showTimePicker && (
+        <DateTimePicker
+          value={(() => {
+            const source = form.times[selectedTimeIndex] ?? "09:00";
+            const [hours, minutes] = source.split(":").map(Number);
+            const date = new Date();
+            date.setHours(hours || 9, minutes || 0, 0, 0);
+            return date;
+          })()}
+          mode="time"
+          onChange={(_, date) => {
+            setShowTimePicker(false);
+            if (!date) return;
+            const newTime = formatTime(date);
+            setForm((prev) => ({
+              ...prev,
+              times: prev.times.map((t, i) =>
+                i === selectedTimeIndex ? newTime : t,
+              ),
+            }));
+          }}
+        />
+      )}
+    </View>
+  );
+
+  const renderStepReminders = () => (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Reminders and Inventory</Text>
+
+      <View style={styles.card}>
+        <View style={styles.switchRow}>
+          <View style={styles.switchLabelContainer}>
+            <View style={styles.iconContainer}>
+              <Ionicons
+                name="notifications"
+                size={20}
+                color={SkeuoTheme.colors.accentDark}
+              />
+            </View>
+            <View style={styles.switchTextContainer}>
+              <Text style={styles.switchLabel}>Dose reminders</Text>
+              <Text style={styles.switchSubLabel}>
+                Notify when it is time to take this dose
+              </Text>
+            </View>
+          </View>
+          <Switch
+            style={styles.switchControl}
+            value={form.reminderEnabled}
+            onValueChange={(value) =>
+              setForm((prev) => ({ ...prev, reminderEnabled: value }))
+            }
+            trackColor={{
+              false: SkeuoTheme.colors.border,
+              true: SkeuoTheme.colors.accent,
+            }}
+            thumbColor={SkeuoTheme.colors.white}
+          />
+        </View>
+      </View>
+
+      <View style={styles.card}>
+        <View style={styles.switchRow}>
+          <View style={styles.switchLabelContainer}>
+            <View style={styles.iconContainer}>
+              <Ionicons
+                name="reload"
+                size={20}
+                color={SkeuoTheme.colors.accentDark}
+              />
+            </View>
+            <View style={styles.switchTextContainer}>
+              <Text style={styles.switchLabel}>Refill reminders</Text>
+              <Text style={styles.switchSubLabel}>
+                Warn when inventory is running low
+              </Text>
+            </View>
+          </View>
+          <Switch
+            style={styles.switchControl}
+            value={form.refillReminder}
+            onValueChange={(value) =>
+              setForm((prev) => ({ ...prev, refillReminder: value }))
+            }
+            trackColor={{
+              false: SkeuoTheme.colors.border,
+              true: SkeuoTheme.colors.accent,
+            }}
+            thumbColor={SkeuoTheme.colors.white}
+          />
+        </View>
+
+        {form.refillReminder && (
+          <View style={styles.refillInputs}>
+            <View style={styles.inputRow}>
+              <View style={[styles.inputContainer, styles.flex1]}>
+                <TextInput
+                  style={[
+                    styles.input,
+                    errors.currentSupply && styles.inputError,
+                  ]}
+                  placeholder="Current supply"
+                  placeholderTextColor={SkeuoTheme.colors.textTertiary}
+                  value={form.currentSupply}
+                  keyboardType="numeric"
+                  onChangeText={(text) =>
+                    setForm((prev) => ({ ...prev, currentSupply: text }))
+                  }
+                />
+              </View>
+
+              <View style={[styles.inputContainer, styles.flex1]}>
+                <TextInput
+                  style={[styles.input, errors.refillAt && styles.inputError]}
+                  placeholder="Alert at"
+                  placeholderTextColor={SkeuoTheme.colors.textTertiary}
+                  value={form.refillAt}
+                  keyboardType="numeric"
+                  onChangeText={(text) =>
+                    setForm((prev) => ({ ...prev, refillAt: text }))
+                  }
+                />
+              </View>
+            </View>
+
+            {errors.currentSupply && (
+              <Text style={styles.errorText}>{errors.currentSupply}</Text>
+            )}
+            {errors.refillAt && (
+              <Text style={styles.errorText}>{errors.refillAt}</Text>
+            )}
+          </View>
+        )}
+      </View>
+
+      <View style={styles.textAreaContainer}>
+        <TextInput
+          style={styles.textArea}
+          placeholder="Add notes or special instructions..."
+          placeholderTextColor={SkeuoTheme.colors.textTertiary}
+          value={form.notes}
+          onChangeText={(text) => setForm((prev) => ({ ...prev, notes: text }))}
+          multiline
+          numberOfLines={4}
+          textAlignVertical="top"
+        />
+      </View>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -401,7 +724,7 @@ export default function AddMedicationScreen() {
           SkeuoTheme.colors.headerGradientStart,
           SkeuoTheme.colors.headerGradientEnd,
         ]}
-        style={[styles.headerGradient, { height: insets.top + 94 }]}
+        style={[styles.headerGradient, { height: insets.top + 102 }]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
       />
@@ -419,9 +742,45 @@ export default function AddMedicationScreen() {
               color={SkeuoTheme.colors.accentDark}
             />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>
-            {isEditMode ? "Edit Medication" : "New Medication"}
-          </Text>
+          <View style={styles.headerTextWrap}>
+            <Text style={styles.headerTitle}>
+              {isEditMode ? "Edit Medication" : "New Medication"}
+            </Text>
+            <Text style={styles.headerSubtitle}>{stepDescription}</Text>
+          </View>
+        </View>
+
+        <View style={styles.stepperRow}>
+          {WIZARD_STEPS.map((label, index) => {
+            const active = index === currentStep;
+            const done = index < currentStep;
+            return (
+              <View key={label} style={styles.stepItem}>
+                <View
+                  style={[
+                    styles.stepCircle,
+                    active && styles.stepCircleActive,
+                    done && styles.stepCircleDone,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.stepCircleText,
+                      (active || done) && styles.stepCircleTextActive,
+                    ]}
+                  >
+                    {index + 1}
+                  </Text>
+                </View>
+                <Text
+                  style={[styles.stepLabel, active && styles.stepLabelActive]}
+                  numberOfLines={1}
+                >
+                  {label}
+                </Text>
+              </View>
+            );
+          })}
         </View>
 
         <ScrollView
@@ -429,324 +788,56 @@ export default function AddMedicationScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.formContentContainer}
         >
-          {/* Basic Information */}
-          <View style={styles.section}>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={[styles.mainInput, errors.name && styles.inputError]}
-                placeholder="Medication Name"
-                placeholderTextColor={SkeuoTheme.colors.textTertiary}
-                value={form.name}
-                onChangeText={(text) => {
-                  setForm({ ...form, name: text });
-                  if (errors.name) {
-                    setErrors({ ...errors, name: "" });
-                  }
-                }}
-              />
-              {errors.name && (
-                <Text style={styles.errorText}>{errors.name}</Text>
-              )}
-            </View>
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={[styles.mainInput, errors.dosage && styles.inputError]}
-                placeholder="Dosage (e.g., 500mg)"
-                placeholderTextColor={SkeuoTheme.colors.textTertiary}
-                value={form.dosage}
-                onChangeText={(text) => {
-                  setForm({ ...form, dosage: text });
-                  if (errors.dosage) {
-                    setErrors({ ...errors, dosage: "" });
-                  }
-                }}
-              />
-              {errors.dosage && (
-                <Text style={styles.errorText}>{errors.dosage}</Text>
-              )}
-            </View>
-          </View>
-
-          {/* Schedule */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>How often?</Text>
-            {errors.frequency && (
-              <Text style={styles.errorText}>{errors.frequency}</Text>
-            )}
-            {renderFrequencyOptions()}
-
-            <Text style={styles.sectionTitle}>For how long?</Text>
-            {errors.duration && (
-              <Text style={styles.errorText}>{errors.duration}</Text>
-            )}
-            {renderDurationOptions()}
-
-            <TouchableOpacity
-              style={styles.dateButton}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <View style={styles.dateIconContainer}>
-                <Ionicons
-                  name="calendar"
-                  size={20}
-                  color={SkeuoTheme.colors.accentDark}
-                />
-              </View>
-              <Text style={styles.dateButtonText}>
-                Starts {form.startDate.toLocaleDateString()}
-              </Text>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={SkeuoTheme.colors.textSecondary}
-              />
-            </TouchableOpacity>
-
-            {showDatePicker && (
-              <DateTimePicker
-                value={form.startDate}
-                mode="date"
-                onChange={(event, date) => {
-                  setShowDatePicker(false);
-                  if (date) setForm({ ...form, startDate: date });
-                }}
-              />
-            )}
-
-            {form.frequency && form.frequency !== "As needed" && (
-              <View style={styles.timesContainer}>
-                <Text style={styles.timesTitle}>Medication Times</Text>
-                {form.times.map((time, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={styles.timeButton}
-                    onPress={() => {
-                      setSelectedTimeIndex(index);
-                      setShowTimePicker(true);
-                    }}
-                  >
-                    <View style={styles.timeIconContainer}>
-                      <Ionicons
-                        name="time-outline"
-                        size={20}
-                        color={SkeuoTheme.colors.accentDark}
-                      />
-                    </View>
-                    <Text style={styles.timeButtonText}>{time}</Text>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={20}
-                      color={SkeuoTheme.colors.textSecondary}
-                    />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-
-            {showTimePicker && (
-              <DateTimePicker
-                value={(() => {
-                  const [hours, minutes] = form.times[selectedTimeIndex]
-                    .split(":")
-                    .map(Number);
-                  const date = new Date();
-                  date.setHours(hours, minutes, 0, 0);
-                  return date;
-                })()}
-                mode="time"
-                onChange={(event, date) => {
-                  setShowTimePicker(false);
-                  if (date) {
-                    const newTime = date.toLocaleTimeString("default", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      hour12: false,
-                    });
-                    setForm((prev) => ({
-                      ...prev,
-                      times: prev.times.map((t, i) =>
-                        i === selectedTimeIndex ? newTime : t,
-                      ),
-                    }));
-                  }
-                }}
-              />
-            )}
-          </View>
-
-          {/* Reminders */}
-          <View style={styles.section}>
-            <View style={styles.card}>
-              <View style={styles.switchRow}>
-                <View style={styles.switchLabelContainer}>
-                  <View style={styles.iconContainer}>
-                    <Ionicons
-                      name="notifications"
-                      size={20}
-                      color={SkeuoTheme.colors.accentDark}
-                    />
-                  </View>
-                  <View style={styles.switchTextContainer}>
-                    <Text style={styles.switchLabel}>Reminders</Text>
-                    <Text style={styles.switchSubLabel}>
-                      Get notified when it&apos;s time to take your medication
-                    </Text>
-                  </View>
-                </View>
-                <Switch
-                  style={styles.switchControl}
-                  value={form.reminderEnabled}
-                  onValueChange={(value) =>
-                    setForm({ ...form, reminderEnabled: value })
-                  }
-                  trackColor={{
-                    false: SkeuoTheme.colors.border,
-                    true: SkeuoTheme.colors.accent,
-                  }}
-                  thumbColor="white"
-                />
-              </View>
-            </View>
-          </View>
-
-          {/* Refill Tracking */}
-          <View style={styles.section}>
-            <View style={styles.card}>
-              <View style={styles.switchRow}>
-                <View style={styles.switchLabelContainer}>
-                  <View style={styles.iconContainer}>
-                    <Ionicons
-                      name="reload"
-                      size={20}
-                      color={SkeuoTheme.colors.accentDark}
-                    />
-                  </View>
-                  <View style={styles.switchTextContainer}>
-                    <Text style={styles.switchLabel}>Refill Tracking</Text>
-                    <Text style={styles.switchSubLabel}>
-                      Get notified when you need to refill
-                    </Text>
-                  </View>
-                </View>
-                <Switch
-                  style={styles.switchControl}
-                  value={form.refillReminder}
-                  onValueChange={(value) => {
-                    setForm({ ...form, refillReminder: value });
-                    if (!value) {
-                      setErrors({
-                        ...errors,
-                        currentSupply: "",
-                        refillAt: "",
-                      });
-                    }
-                  }}
-                  trackColor={{
-                    false: SkeuoTheme.colors.border,
-                    true: SkeuoTheme.colors.accent,
-                  }}
-                  thumbColor="white"
-                />
-              </View>
-              {form.refillReminder && (
-                <View style={styles.refillInputs}>
-                  <View style={styles.inputRow}>
-                    <View style={[styles.inputContainer, styles.flex1]}>
-                      <TextInput
-                        style={[
-                          styles.input,
-                          errors.currentSupply && styles.inputError,
-                        ]}
-                        placeholder="Current Supply"
-                        placeholderTextColor={SkeuoTheme.colors.textTertiary}
-                        value={form.currentSupply}
-                        onChangeText={(text) => {
-                          setForm({ ...form, currentSupply: text });
-                          if (errors.currentSupply) {
-                            setErrors({ ...errors, currentSupply: "" });
-                          }
-                        }}
-                        keyboardType="numeric"
-                      />
-                      {errors.currentSupply && (
-                        <Text style={styles.errorText}>
-                          {errors.currentSupply}
-                        </Text>
-                      )}
-                    </View>
-                    <View style={[styles.inputContainer, styles.flex1]}>
-                      <TextInput
-                        style={[
-                          styles.input,
-                          errors.refillAt && styles.inputError,
-                        ]}
-                        placeholder="Alert at"
-                        placeholderTextColor={SkeuoTheme.colors.textTertiary}
-                        value={form.refillAt}
-                        onChangeText={(text) => {
-                          setForm({ ...form, refillAt: text });
-                          if (errors.refillAt) {
-                            setErrors({ ...errors, refillAt: "" });
-                          }
-                        }}
-                        keyboardType="numeric"
-                      />
-                      {errors.refillAt && (
-                        <Text style={styles.errorText}>{errors.refillAt}</Text>
-                      )}
-                    </View>
-                  </View>
-                </View>
-              )}
-            </View>
-          </View>
-
-          {/* Notes */}
-          <View style={styles.section}>
-            <View style={styles.textAreaContainer}>
-              <TextInput
-                style={styles.textArea}
-                placeholder="Add notes or special instructions..."
-                placeholderTextColor={SkeuoTheme.colors.textTertiary}
-                value={form.notes}
-                onChangeText={(text) => setForm({ ...form, notes: text })}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-              />
-            </View>
-          </View>
+          {currentStep === 0 && renderStepBasic()}
+          {currentStep === 1 && renderStepSchedule()}
+          {currentStep === 2 && renderStepReminders()}
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-          <TouchableOpacity
-            style={[
-              styles.saveButton,
-              isSubmitting && styles.saveButtonDisabled,
-            ]}
-            onPress={handleSave}
-            disabled={isSubmitting}
-          >
-            <LinearGradient
-              colors={[
-                SkeuoTheme.colors.headerGradientStart,
-                SkeuoTheme.colors.headerGradientEnd,
+          <View style={styles.footerRow}>
+            {currentStep > 0 ? (
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                disabled={isSubmitting}
+                onPress={() => setCurrentStep((prev) => Math.max(0, prev - 1))}
+              >
+                <Text style={styles.secondaryButtonText}>Back</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.footerSpacer} />
+            )}
+
+            <TouchableOpacity
+              style={[
+                styles.saveButton,
+                isSubmitting && styles.saveButtonDisabled,
               ]}
-              style={styles.saveButtonGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
+              onPress={handlePrimaryAction}
+              disabled={isSubmitting}
             >
-              <Text style={styles.saveButtonText}>
-                {isSubmitting
-                  ? isEditMode
-                    ? "Saving..."
-                    : "Adding..."
-                  : isEditMode
-                    ? "Save Changes"
-                    : "Add Medication"}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={[
+                  SkeuoTheme.colors.headerGradientStart,
+                  SkeuoTheme.colors.headerGradientEnd,
+                ]}
+                style={styles.saveButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Text style={styles.saveButtonText}>
+                  {currentStep < WIZARD_STEPS.length - 1
+                    ? "Continue"
+                    : isSubmitting
+                      ? isEditMode
+                        ? "Saving..."
+                        : "Adding..."
+                      : isEditMode
+                        ? "Save Changes"
+                        : "Add Medication"}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
 
           {isEditMode && (
             <TouchableOpacity
@@ -837,14 +928,13 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingTop: 0,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
     minHeight: 56,
-    paddingBottom: 20,
+    paddingBottom: 8,
     zIndex: 1,
   },
   backButton: {
@@ -862,11 +952,66 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  headerTextWrap: {
+    marginLeft: 15,
+    flex: 1,
+  },
   headerTitle: {
     fontSize: 28,
     fontWeight: "700",
-    color: "white",
-    marginLeft: 15,
+    color: SkeuoTheme.colors.white,
+  },
+  headerSubtitle: {
+    marginTop: 2,
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  stepperRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+  },
+  stepItem: {
+    alignItems: "center",
+    width: (width - 60) / 3,
+  },
+  stepCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepCircleActive: {
+    borderColor: SkeuoTheme.colors.accent,
+    backgroundColor: SkeuoTheme.colors.accent,
+  },
+  stepCircleDone: {
+    borderColor: SkeuoTheme.colors.success,
+    backgroundColor: SkeuoTheme.colors.success,
+  },
+  stepCircleText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: SkeuoTheme.colors.textSecondary,
+  },
+  stepCircleTextActive: {
+    color: SkeuoTheme.colors.white,
+  },
+  stepLabel: {
+    marginTop: 6,
+    fontSize: 12,
+    color: SkeuoTheme.colors.textSecondary,
+    fontWeight: "600",
+  },
+  stepLabelActive: {
+    color: SkeuoTheme.colors.textPrimary,
   },
   formContainer: {
     flex: 1,
@@ -881,11 +1026,22 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: SkeuoTheme.colors.textPrimary,
-    marginBottom: 15,
-    marginTop: 10,
+    marginBottom: 14,
+  },
+  inputContainer: {
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderRadius: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    shadowColor: "#5f807f",
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 2,
   },
   mainInput: {
-    fontSize: 20,
+    fontSize: 19,
     color: SkeuoTheme.colors.textPrimary,
     padding: 15,
   },
@@ -898,7 +1054,7 @@ const styles = StyleSheet.create({
     width: (width - 60) / 2,
     backgroundColor: SkeuoTheme.colors.cardBackground,
     borderRadius: 16,
-    padding: 15,
+    padding: 14,
     margin: 5,
     alignItems: "center",
     borderWidth: 1,
@@ -914,9 +1070,9 @@ const styles = StyleSheet.create({
     borderColor: SkeuoTheme.colors.accent,
   },
   optionIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: SkeuoTheme.colors.neutralSurface,
     justifyContent: "center",
     alignItems: "center",
@@ -932,7 +1088,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   selectedOptionLabel: {
-    color: "white",
+    color: SkeuoTheme.colors.white,
   },
   durationNumber: {
     fontSize: 24,
@@ -941,19 +1097,7 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   selectedDurationNumber: {
-    color: "white",
-  },
-  inputContainer: {
-    backgroundColor: SkeuoTheme.colors.cardBackground,
-    borderRadius: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: SkeuoTheme.colors.border,
-    shadowColor: "#5f807f",
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 2,
+    color: SkeuoTheme.colors.white,
   },
   dateButton: {
     flexDirection: "row",
@@ -961,7 +1105,7 @@ const styles = StyleSheet.create({
     backgroundColor: SkeuoTheme.colors.cardBackground,
     borderRadius: 16,
     padding: 15,
-    marginTop: 15,
+    marginTop: 10,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
     shadowColor: "#5f807f",
@@ -984,12 +1128,88 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: SkeuoTheme.colors.textPrimary,
   },
+  timesContainer: {
+    marginTop: 16,
+  },
+  timeHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  timesTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: SkeuoTheme.colors.textPrimary,
+  },
+  addTimeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: SkeuoTheme.colors.accent,
+    borderRadius: 999,
+    paddingVertical: 7,
+    paddingHorizontal: 11,
+  },
+  addTimeButtonText: {
+    color: SkeuoTheme.colors.white,
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  timeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+  },
+  timeButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderRadius: 16,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    shadowColor: "#5f807f",
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  timeIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: SkeuoTheme.colors.neutralSurface,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  timeButtonText: {
+    flex: 1,
+    fontSize: 16,
+    color: SkeuoTheme.colors.textPrimary,
+  },
+  removeTimeButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.dangerBorder,
+    backgroundColor: SkeuoTheme.colors.dangerSurface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  removeTimeButtonDisabled: {
+    opacity: 0.45,
+  },
   card: {
     backgroundColor: SkeuoTheme.colors.cardBackground,
     borderRadius: 16,
-    padding: 20,
+    padding: 18,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
+    marginBottom: 12,
     shadowColor: "#5f807f",
     shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 0.2,
@@ -1033,12 +1253,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: SkeuoTheme.colors.textSecondary,
     marginTop: 2,
-    flexShrink: 1,
     lineHeight: 18,
+  },
+  refillInputs: {
+    marginTop: 14,
   },
   inputRow: {
     flexDirection: "row",
-    marginTop: 15,
+    marginTop: 5,
     gap: 10,
   },
   flex1: {
@@ -1072,22 +1294,17 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: SkeuoTheme.colors.border,
   },
-  saveButton: {
-    borderRadius: 16,
-    overflow: "hidden",
+  footerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
     marginBottom: 12,
   },
-  saveButtonGradient: {
-    paddingVertical: 15,
-    justifyContent: "center",
-    alignItems: "center",
+  footerSpacer: {
+    flex: 1,
   },
-  saveButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  cancelButton: {
+  secondaryButton: {
+    flex: 1,
     paddingVertical: 15,
     borderRadius: 16,
     borderWidth: 1,
@@ -1096,10 +1313,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: SkeuoTheme.colors.cardBackground,
   },
-  cancelButtonText: {
+  secondaryButtonText: {
     color: SkeuoTheme.colors.textSecondary,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  saveButton: {
+    flex: 2,
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  saveButtonGradient: {
+    paddingVertical: 15,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  saveButtonText: {
+    color: SkeuoTheme.colors.white,
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
+  },
+  saveButtonDisabled: {
+    opacity: 0.7,
   },
   deleteFooterButton: {
     marginBottom: 12,
@@ -1118,58 +1353,28 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
   },
+  cancelButton: {
+    paddingVertical: 15,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+  },
+  cancelButtonText: {
+    color: SkeuoTheme.colors.textSecondary,
+    fontSize: 16,
+    fontWeight: "600",
+  },
   inputError: {
     borderColor: SkeuoTheme.colors.danger,
   },
   errorText: {
     color: SkeuoTheme.colors.danger,
     fontSize: 12,
-    marginTop: 4,
-    marginLeft: 12,
-  },
-  saveButtonDisabled: {
-    opacity: 0.7,
-  },
-  refillInputs: {
-    marginTop: 15,
-  },
-  timesContainer: {
-    marginTop: 20,
-  },
-  timesTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: SkeuoTheme.colors.textPrimary,
-    marginBottom: 10,
-  },
-  timeButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: SkeuoTheme.colors.cardBackground,
-    borderRadius: 16,
-    padding: 15,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: SkeuoTheme.colors.border,
-    shadowColor: "#5f807f",
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  timeIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: SkeuoTheme.colors.neutralSurface,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 10,
-  },
-  timeButtonText: {
-    flex: 1,
-    fontSize: 16,
-    color: SkeuoTheme.colors.textPrimary,
+    marginBottom: 8,
+    marginLeft: 8,
   },
   validationOverlay: {
     flex: 1,

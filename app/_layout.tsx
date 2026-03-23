@@ -1,7 +1,13 @@
+import { runStorageMigrations } from "@/utils/storage";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
 
 export default function Layout() {
+  useEffect(() => {
+    runStorageMigrations();
+  }, []);
+
   return (
     <>
       <StatusBar style="light" />
@@ -22,6 +28,14 @@ export default function Layout() {
         />
         <Stack.Screen
           name="medications/index"
+          options={{
+            headerShown: false,
+            headerBackTitle: "",
+            title: "",
+          }}
+        />
+        <Stack.Screen
+          name="medications/[id]"
           options={{
             headerShown: false,
             headerBackTitle: "",

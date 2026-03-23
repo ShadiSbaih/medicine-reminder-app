@@ -3,6 +3,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const MEDICATIONS_KEY = "@medications";
 const DOSE_HISTORY_KEY = "@dose_history";
 const NOTIFICATION_READ_KEY = "@notification_read";
+const STORAGE_SCHEMA_VERSION_KEY = "@storage_schema_version";
+const CURRENT_STORAGE_SCHEMA_VERSION = 1;
 
 type NotificationReadMap = Record<string, string[]>;
 
@@ -29,7 +31,47 @@ export interface DoseHistory {
   medicationId: string;
   timestamp: string;
   taken: boolean;
+  status?: "taken" | "missed" | "skipped";
   scheduledTime?: string;
+}
+
+export function getDoseStatus(
+  dose: DoseHistory,
+): "taken" | "missed" | "skipped" {
+  if (
+    dose.status === "taken" ||
+    dose.status === "missed" ||
+    dose.status === "skipped"
+  ) {
+    return dose.status;
+  }
+
+  return dose.taken ? "taken" : "missed";
+}
+
+export async function runStorageMigrations(): Promise<void> {
+  try {
+    const versionRaw = await AsyncStorage.getItem(STORAGE_SCHEMA_VERSION_KEY);
+    const version = versionRaw ? Number(versionRaw) : 0;
+
+    if (version >= CURRENT_STORAGE_SCHEMA_VERSION) {
+      return;
+    }
+
+    const doseHistory = await getDoseHistory();
+    const normalized = doseHistory.map((dose) => ({
+      ...dose,
+      status: getDoseStatus(dose),
+    }));
+
+    await AsyncStorage.setItem(DOSE_HISTORY_KEY, JSON.stringify(normalized));
+    await AsyncStorage.setItem(
+      STORAGE_SCHEMA_VERSION_KEY,
+      String(CURRENT_STORAGE_SCHEMA_VERSION),
+    );
+  } catch (error) {
+    console.error("Error running storage migrations:", error);
+  }
 }
 
 export async function getMedications(): Promise<Medication[]> {
@@ -88,7 +130,12 @@ export async function deleteMedication(id: string): Promise<void> {
 export async function getDoseHistory(): Promise<DoseHistory[]> {
   try {
     const data = await AsyncStorage.getItem(DOSE_HISTORY_KEY);
-    return data ? JSON.parse(data) : [];
+    const parsed: DoseHistory[] = data ? JSON.parse(data) : [];
+
+    return parsed.map((dose) => ({
+      ...dose,
+      status: getDoseStatus(dose),
+    }));
   } catch (error) {
     console.error("Error getting dose history:", error);
     return [];
@@ -113,6 +160,7 @@ export async function recordDose(
   taken: boolean,
   timestamp: string,
   scheduledTime?: string,
+  status?: "taken" | "missed" | "skipped",
 ): Promise<void> {
   try {
     const history = await getDoseHistory();
@@ -130,29 +178,41 @@ export async function recordDose(
 
       if (existingIndex >= 0) {
         const previous = history[existingIndex];
+        const resolvedStatus =
+          status ??
+          (taken
+            ? "taken"
+            : previous.status === "skipped"
+              ? "skipped"
+              : "missed");
         history[existingIndex] = {
           ...previous,
           timestamp,
           taken,
+          status: resolvedStatus,
         };
         shouldDecrementSupply = taken && !previous.taken;
       } else {
+        const resolvedStatus = status ?? (taken ? "taken" : "missed");
         const newDose: DoseHistory = {
           id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`,
           medicationId,
           timestamp,
           taken,
+          status: resolvedStatus,
           scheduledTime,
         };
         history.push(newDose);
         shouldDecrementSupply = taken;
       }
     } else {
+      const resolvedStatus = status ?? (taken ? "taken" : "missed");
       const newDose: DoseHistory = {
         id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`,
         medicationId,
         timestamp,
         taken,
+        status: resolvedStatus,
         scheduledTime,
       };
       history.push(newDose);

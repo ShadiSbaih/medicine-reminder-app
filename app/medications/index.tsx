@@ -1,32 +1,34 @@
+import { medicationService } from "@/services/medication-service";
+import { isMedicationActiveOnDate } from "@/shared/utils/medication-schedule";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
     Alert,
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SkeuoTheme } from "../../constants/theme";
-import { cancelMedicationReminders } from "../../utils/notifications";
-import {
-    deleteMedication,
-    getMedications,
-    Medication,
-} from "../../utils/storage";
+import { Medication } from "../../utils/storage";
+
+type MedicationFilter = "all" | "active" | "low-stock" | "reminders-off";
 
 export default function MedicationsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [medications, setMedications] = useState<Medication[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedFilter, setSelectedFilter] = useState<MedicationFilter>("all");
 
   const loadMedications = useCallback(async () => {
-    const data = await getMedications();
+    const data = await medicationService.list();
     setMedications(data);
   }, []);
 
@@ -35,6 +37,36 @@ export default function MedicationsScreen() {
       loadMedications();
     }, [loadMedications]),
   );
+
+  const filteredMedications = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return medications.filter((medication) => {
+      const activeToday = isMedicationActiveOnDate(medication, new Date());
+      const lowStock =
+        medication.refillReminder &&
+        medication.currentSupply <= medication.refillAt;
+
+      const filterMatch =
+        selectedFilter === "all"
+          ? true
+          : selectedFilter === "active"
+            ? activeToday
+            : selectedFilter === "low-stock"
+              ? lowStock
+              : !medication.reminderEnabled;
+
+      if (!filterMatch) return false;
+
+      if (!query) return true;
+
+      return (
+        medication.name.toLowerCase().includes(query) ||
+        medication.dosage.toLowerCase().includes(query) ||
+        medication.frequency.toLowerCase().includes(query)
+      );
+    });
+  }, [medications, searchQuery, selectedFilter]);
 
   const handleDelete = (medication: Medication) => {
     Alert.alert(
@@ -47,8 +79,7 @@ export default function MedicationsScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await cancelMedicationReminders(medication.id);
-              await deleteMedication(medication.id);
+              await medicationService.remove(medication.id);
               await loadMedications();
             } catch (error) {
               console.error("Error deleting medication:", error);
@@ -88,6 +119,59 @@ export default function MedicationsScreen() {
           <Text style={styles.headerTitle}>Medications</Text>
         </View>
 
+        <View style={styles.controlsContainer}>
+          <View style={styles.searchInputWrapper}>
+            <Ionicons
+              name="search-outline"
+              size={18}
+              color={SkeuoTheme.colors.textSecondary}
+            />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search medication"
+              placeholderTextColor={SkeuoTheme.colors.textTertiary}
+              style={styles.searchInput}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery("")}>
+                <Ionicons
+                  name="close-circle"
+                  size={18}
+                  color={SkeuoTheme.colors.textSecondary}
+                />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {[
+              { key: "all", label: "All" },
+              { key: "active", label: "Active" },
+              { key: "low-stock", label: "Low stock" },
+              { key: "reminders-off", label: "Reminders off" },
+            ].map((item) => (
+              <TouchableOpacity
+                key={item.key}
+                style={[
+                  styles.filterChip,
+                  selectedFilter === item.key && styles.filterChipActive,
+                ]}
+                onPress={() => setSelectedFilter(item.key as MedicationFilter)}
+              >
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    selectedFilter === item.key && styles.filterChipTextActive,
+                  ]}
+                >
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
         <ScrollView
           style={styles.list}
           contentContainerStyle={styles.listContent}
@@ -111,8 +195,20 @@ export default function MedicationsScreen() {
                 <Text style={styles.addInlineButtonText}>Add Medication</Text>
               </TouchableOpacity>
             </View>
+          ) : filteredMedications.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Ionicons
+                name="search-outline"
+                size={40}
+                color={SkeuoTheme.colors.textTertiary}
+              />
+              <Text style={styles.emptyTitle}>No results</Text>
+              <Text style={styles.emptyText}>
+                Adjust your search or filters to find medications.
+              </Text>
+            </View>
           ) : (
-            medications.map((medication) => {
+            filteredMedications.map((medication) => {
               const totalSupply = Math.max(1, medication.totalSupply || 0);
               const supplyPercent = Math.min(
                 100,
@@ -121,11 +217,21 @@ export default function MedicationsScreen() {
               const lowStock =
                 medication.refillReminder &&
                 medication.currentSupply <= medication.refillAt;
+              const isActive = isMedicationActiveOnDate(medication, new Date());
 
               return (
                 <View key={medication.id} style={styles.card}>
                   <View style={styles.cardTopRow}>
-                    <View style={styles.titleRow}>
+                    <TouchableOpacity
+                      style={styles.titleRow}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/medications/[id]",
+                          params: { id: medication.id },
+                        })
+                      }
+                      activeOpacity={0.8}
+                    >
                       <View
                         style={[
                           styles.colorPill,
@@ -141,7 +247,7 @@ export default function MedicationsScreen() {
                         </Text>
                         <Text style={styles.dosage}>{medication.dosage}</Text>
                       </View>
-                    </View>
+                    </TouchableOpacity>
 
                     <View style={styles.actionsRow}>
                       <TouchableOpacity
@@ -173,6 +279,16 @@ export default function MedicationsScreen() {
                   </View>
 
                   <View style={styles.metaRow}>
+                    <View style={styles.metaChip}>
+                      <Ionicons
+                        name={isActive ? "pulse-outline" : "pause-outline"}
+                        size={14}
+                        color={SkeuoTheme.colors.textSecondary}
+                      />
+                      <Text style={styles.metaChipText}>
+                        {isActive ? "Active" : "Completed"}
+                      </Text>
+                    </View>
                     <View style={styles.metaChip}>
                       <Ionicons
                         name="time-outline"
@@ -253,6 +369,47 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  controlsContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 10,
+  },
+  searchInputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 10,
+  },
+  searchInput: {
+    flex: 1,
+    color: SkeuoTheme.colors.textPrimary,
+    paddingVertical: 10,
+    marginLeft: 8,
+  },
+  filterChip: {
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    marginRight: 8,
+  },
+  filterChipActive: {
+    backgroundColor: SkeuoTheme.colors.accent,
+    borderColor: SkeuoTheme.colors.accent,
+  },
+  filterChipText: {
+    color: SkeuoTheme.colors.textSecondary,
+    fontWeight: "600",
+    fontSize: 12,
+  },
+  filterChipTextActive: {
+    color: SkeuoTheme.colors.white,
   },
   header: {
     flexDirection: "row",
