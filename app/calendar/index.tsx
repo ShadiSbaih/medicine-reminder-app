@@ -137,8 +137,8 @@ export default function CalendarScreen() {
           key={day}
           style={[
             styles.calendarDay,
-            isSelected && styles.selectedDay,
             isToday && styles.today,
+            isSelected && styles.selectedDay,
             hasDoses && styles.hasEvents,
           ]}
           onPress={() => setSelectedDate(date)}
@@ -146,8 +146,8 @@ export default function CalendarScreen() {
           <Text
             style={[
               styles.dayText,
-              isSelected && styles.selectedDayText,
               isToday && styles.todayText,
+              isSelected && styles.selectedDayText,
             ]}
           >
             {day}
