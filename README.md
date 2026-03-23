@@ -139,13 +139,13 @@ This project includes EAS configuration in eas.json.
 npm install -g eas-cli
 ```
 
-2. Log in to Expo:
+1. Log in to Expo:
 
 ```bash
 eas login
 ```
 
-3. Build Android artifact:
+1. Build Android artifact:
 
 ```bash
 eas build -p android --profile preview

@@ -300,7 +300,7 @@ export default function AddMedicationScreen() {
               await cancelMedicationReminders(medicationId);
               await deleteMedication(medicationId);
               Alert.alert("Deleted", "Medication deleted successfully", [
-                { text: "OK", onPress: () => router.replace("/medications") },
+                { text: "OK", onPress: () => router.back() },
               ]);
             } catch (error) {
               console.error("Delete error:", error);
