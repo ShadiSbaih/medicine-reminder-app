@@ -7,6 +7,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -25,6 +26,9 @@ export default function CalendarScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [doseHistory, setDoseHistory] = useState<DoseHistory[]>([]);
   const [timelineItems, setTimelineItems] = useState<TimelineDose[]>([]);
+  const [selectedTotalScheduled, setSelectedTotalScheduled] = useState(0);
+  const [selectedResolvedCount, setSelectedResolvedCount] = useState(0);
+  const [selectedOverdueCount, setSelectedOverdueCount] = useState(0);
 
   const loadCalendarHistory = useCallback(async () => {
     try {
@@ -39,10 +43,35 @@ export default function CalendarScreen() {
     try {
       const timeline = await todayTimelineService.getForDate(date);
       setTimelineItems(timeline.items);
+      setSelectedTotalScheduled(timeline.totalScheduled);
+      setSelectedResolvedCount(
+        timeline.items.filter((item) => Boolean(item.scheduledTime) && item.isResolved).length,
+      );
+      setSelectedOverdueCount(timeline.overdueCount);
     } catch (error) {
       console.error("Error loading selected date timeline:", error);
     }
   }, []);
+
+  const confirmSkipDose = (
+    medicationName: string,
+    onConfirm: () => Promise<void>,
+  ) => {
+    Alert.alert(
+      "Skip dose?",
+      `Mark ${medicationName} as skipped for this slot?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Skip",
+          style: "destructive",
+          onPress: () => {
+            void onConfirm();
+          },
+        },
+      ],
+    );
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -173,22 +202,24 @@ export default function CalendarScreen() {
                     styles.skipDoseButton,
                     { borderColor: medication.color },
                   ]}
-                  onPress={async () => {
-                    if (nextTime) {
-                      await doseService.skipScheduledDose(
-                        medication.id,
-                        nextTime,
-                        timestamp,
-                      );
-                    } else {
-                      await doseService.skipAsNeededDose(
-                        medication.id,
-                        timestamp,
-                      );
-                    }
-                    await loadSelectedDateTimeline(selectedDate);
-                    await loadCalendarHistory();
-                  }}
+                  onPress={() =>
+                    confirmSkipDose(medication.name, async () => {
+                      if (nextTime) {
+                        await doseService.skipScheduledDose(
+                          medication.id,
+                          nextTime,
+                          timestamp,
+                        );
+                      } else {
+                        await doseService.skipAsNeededDose(
+                          medication.id,
+                          timestamp,
+                        );
+                      }
+                      await loadSelectedDateTimeline(selectedDate);
+                      await loadCalendarHistory();
+                    })
+                  }
                 >
                   <Text
                     style={[styles.skipDoseText, { color: medication.color }]}
@@ -320,6 +351,37 @@ export default function CalendarScreen() {
               day: "numeric",
             })}
           </Text>
+          <View style={styles.scheduleSummaryRow}>
+            <View style={styles.summaryChip}>
+              <Text style={styles.summaryChipLabel}>Resolved</Text>
+              <Text style={styles.summaryChipValue}>
+                {selectedResolvedCount}/{selectedTotalScheduled}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.summaryChip,
+                selectedOverdueCount > 0 && styles.summaryChipOverdue,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.summaryChipLabel,
+                  selectedOverdueCount > 0 && styles.summaryChipLabelOverdue,
+                ]}
+              >
+                Overdue
+              </Text>
+              <Text
+                style={[
+                  styles.summaryChipValue,
+                  selectedOverdueCount > 0 && styles.summaryChipValueOverdue,
+                ]}
+              >
+                {selectedOverdueCount}
+              </Text>
+            </View>
+          </View>
           <ScrollView showsVerticalScrollIndicator={false}>
             {renderMedicationsForDate()}
           </ScrollView>
@@ -457,7 +519,42 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
     color: SkeuoTheme.colors.textPrimary,
-    marginBottom: 15,
+    marginBottom: 10,
+  },
+  scheduleSummaryRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 14,
+  },
+  summaryChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: SkeuoTheme.colors.neutralSurface,
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  summaryChipOverdue: {
+    backgroundColor: SkeuoTheme.colors.dangerSurface,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.dangerBorder,
+  },
+  summaryChipLabel: {
+    fontSize: 12,
+    color: SkeuoTheme.colors.textSecondary,
+    fontWeight: "600",
+  },
+  summaryChipValue: {
+    fontSize: 12,
+    color: SkeuoTheme.colors.textPrimary,
+    fontWeight: "700",
+  },
+  summaryChipLabelOverdue: {
+    color: SkeuoTheme.colors.danger,
+  },
+  summaryChipValueOverdue: {
+    color: SkeuoTheme.colors.danger,
   },
   medicationCard: {
     flexDirection: "row",

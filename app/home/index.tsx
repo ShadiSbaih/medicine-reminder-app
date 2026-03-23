@@ -255,6 +255,24 @@ export default function HomeScreen() {
     }
   };
 
+  const confirmSkipDose = (medication: Medication, scheduledTime?: string) => {
+    const whenText = scheduledTime ? ` at ${scheduledTime}` : "";
+    Alert.alert(
+      "Skip dose?",
+      `Mark ${medication.name}${whenText} as skipped for now?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Skip",
+          style: "destructive",
+          onPress: () => {
+            void handleSkipDose(medication, scheduledTime);
+          },
+        },
+      ],
+    );
+  };
+
   const notificationItems: NotificationItem[] =
     todayTimelineService.getNotificationReadState(
       scheduledDoses,
@@ -371,13 +389,13 @@ export default function HomeScreen() {
                 <TouchableOpacity
                   style={styles.focusSkipButton}
                   onPress={() =>
-                    handleSkipDose(
+                    confirmSkipDose(
                       nextDueDose.medication,
                       nextDueDose.scheduledTime,
                     )
                   }
                 >
-                  <Text style={styles.focusSkipText}>Skip</Text>
+                  <Text style={styles.focusSkipText}>Skip for now</Text>
                 </TouchableOpacity>
               </>
             ) : (
@@ -517,7 +535,7 @@ export default function HomeScreen() {
                           { borderColor: medication.color },
                         ]}
                         onPress={() =>
-                          handleSkipDose(medication, scheduledTime)
+                          confirmSkipDose(medication, scheduledTime)
                         }
                       >
                         <Text
