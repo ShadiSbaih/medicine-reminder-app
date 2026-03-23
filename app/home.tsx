@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 import { SkeuoTheme } from "../constants/theme";
 import {
@@ -24,7 +25,10 @@ import {
 import {
   DoseHistory,
   getMedications,
+  getReadNotificationIds,
   getTodaysDoses,
+  markNotificationAsRead,
+  markNotificationsAsRead,
   Medication,
   recordDose,
 } from "../utils/storage";
@@ -39,29 +43,29 @@ const QUICK_ACTIONS = [
     icon: "add-circle-outline" as const,
     label: "Add\nMedication",
     route: "/medications/add" as const,
-    color: "#2E7D32",
-    gradient: ["#4CAF50", "#2E7D32"] as [string, string],
+    color: "#20B486",
+    gradient: ["#26C89A", "#117A66"] as [string, string],
   },
   {
     icon: "calendar-outline" as const,
     label: "Calendar\nView",
     route: "/calendar" as const,
-    color: "#1976D2",
-    gradient: ["#2196F3", "#1976D2"] as [string, string],
+    color: "#3B82F6",
+    gradient: ["#5B9DFF", "#2D5BBF"] as [string, string],
   },
   {
     icon: "time-outline" as const,
     label: "History\nLog",
     route: "/history" as const,
-    color: "#C2185B",
-    gradient: ["#E91E63", "#C2185B"] as [string, string],
+    color: "#E58A2E",
+    gradient: ["#F3A94B", "#CF6F1B"] as [string, string],
   },
   {
     icon: "medical-outline" as const,
     label: "Refill\nTracker",
-    route: "/refills/index" as const,
-    color: "#E64A19",
-    gradient: ["#FF5722", "#E64A19"] as [string, string],
+    route: "/refills" as const,
+    color: "#7C66E6",
+    gradient: ["#9580F5", "#5A43BF"] as [string, string],
   },
 ];
 
@@ -76,6 +80,11 @@ interface ScheduledDose {
   medication: Medication;
   scheduledTime?: string;
   timeLabel: string;
+}
+
+interface NotificationItem extends ScheduledDose {
+  isRead: boolean;
+  isOverdue: boolean;
 }
 
 function CircularProgress({
@@ -95,7 +104,7 @@ function CircularProgress({
       duration: 1500,
       useNativeDriver: true,
     }).start();
-  }, [progress]);
+  }, [progress, animatedValue]);
 
   const strokeDashoffset = animatedValue.interpolate({
     inputRange: [0, 1],
@@ -139,10 +148,12 @@ function CircularProgress({
 }
 
 export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
   const [showNotifications, setShowNotifications] = useState(false);
   const [scheduledDoses, setScheduledDoses] = useState<ScheduledDose[]>([]);
   const [completedDoses, setCompletedDoses] = useState(0);
   const [doseHistory, setDoseHistory] = useState<DoseHistory[]>([]);
+  const [readNotificationIds, setReadNotificationIds] = useState<string[]>([]);
 
   const loadMedications = useCallback(async () => {
     try {
@@ -165,7 +176,7 @@ export default function HomeScreen() {
           (today >= startDate &&
             today <=
               new Date(
-                startDate.getTime() + durationDays * 24 * 60 * 60 * 1000
+                startDate.getTime() + durationDays * 24 * 60 * 60 * 1000,
               ))
         ) {
           return true;
@@ -196,7 +207,7 @@ export default function HomeScreen() {
       const uniqueCompletedSchedule = new Set(
         todaysDoses
           .filter((dose) => dose.taken && dose.scheduledTime)
-          .map((dose) => `${dose.medicationId}-${dose.scheduledTime}`)
+          .map((dose) => `${dose.medicationId}-${dose.scheduledTime}`),
       );
 
       const completed = uniqueCompletedSchedule.size;
@@ -206,7 +217,7 @@ export default function HomeScreen() {
     }
   }, []);
 
-  const setupNotifications = async () => {
+  const setupNotifications = useCallback(async () => {
     try {
       const token = await registerForPushNotificationsAsync();
       if (!token) {
@@ -224,7 +235,7 @@ export default function HomeScreen() {
     } catch (error) {
       console.error("Error setting up notifications:", error);
     }
-  };
+  }, []);
 
   // Use useEffect for initial load
   useEffect(() => {
@@ -241,7 +252,14 @@ export default function HomeScreen() {
     return () => {
       subscription.remove();
     };
-  }, []);
+  }, [loadMedications, setupNotifications]);
+
+  const todayKey = new Date().toISOString().slice(0, 10);
+
+  const loadReadNotifications = useCallback(async () => {
+    const readIds = await getReadNotificationIds(todayKey);
+    setReadNotificationIds(readIds);
+  }, [todayKey]);
 
   // Use useFocusEffect for subsequent updates
   useFocusEffect(
@@ -251,20 +269,21 @@ export default function HomeScreen() {
       };
 
       loadMedications();
+      loadReadNotifications();
       return () => unsubscribe();
-    }, [loadMedications])
+    }, [loadMedications, loadReadNotifications]),
   );
 
   const handleTakeDose = async (
     medication: Medication,
-    scheduledTime?: string
+    scheduledTime?: string,
   ) => {
     try {
       await recordDose(
         medication.id,
         true,
         new Date().toISOString(),
-        scheduledTime
+        scheduledTime,
       );
       await loadMedications(); // Reload data after recording dose
     } catch (error) {
@@ -278,36 +297,122 @@ export default function HomeScreen() {
       (dose) =>
         dose.medicationId === medicationId &&
         dose.taken &&
-        (!scheduledTime || dose.scheduledTime === scheduledTime)
+        (!scheduledTime || dose.scheduledTime === scheduledTime),
     );
   };
 
-  const totalScheduledDoses = scheduledDoses.filter(
-    (dose) => Boolean(dose.scheduledTime)
+  const totalScheduledDoses = scheduledDoses.filter((dose) =>
+    Boolean(dose.scheduledTime),
   ).length;
 
+  const timeToTodayDate = (time: string) => {
+    const [hours, minutes] = time.split(":").map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    return date;
+  };
+
+  const scheduledDosesSorted = [...scheduledDoses].sort((a, b) => {
+    if (!a.scheduledTime && !b.scheduledTime) return 0;
+    if (!a.scheduledTime) return 1;
+    if (!b.scheduledTime) return -1;
+    return (
+      timeToTodayDate(a.scheduledTime).getTime() -
+      timeToTodayDate(b.scheduledTime).getTime()
+    );
+  });
+
+  const pendingScheduledDoses = scheduledDosesSorted.filter(
+    (dose) =>
+      dose.scheduledTime &&
+      !isDoseTaken(dose.medication.id, dose.scheduledTime),
+  );
+
+  const now = new Date();
+  const overdueCount = pendingScheduledDoses.filter(
+    (dose) => dose.scheduledTime && timeToTodayDate(dose.scheduledTime) < now,
+  ).length;
+
+  const nextUpcomingDose = pendingScheduledDoses.find(
+    (dose) => dose.scheduledTime && timeToTodayDate(dose.scheduledTime) >= now,
+  );
+
+  const nextDueDose = nextUpcomingDose ?? pendingScheduledDoses[0];
+
+  const notificationItems: NotificationItem[] = scheduledDosesSorted.map(
+    (dose) => {
+      const taken = isDoseTaken(dose.medication.id, dose.scheduledTime);
+      const isOverdue =
+        Boolean(dose.scheduledTime) &&
+        !taken &&
+        timeToTodayDate(dose.scheduledTime as string) < now;
+      return {
+        ...dose,
+        isRead: readNotificationIds.includes(dose.id),
+        isOverdue,
+      };
+    },
+  );
+
+  const unreadNotificationCount = notificationItems.filter(
+    (item) => !item.isRead,
+  ).length;
+
+  const handleMarkNotificationRead = async (notificationId: string) => {
+    if (readNotificationIds.includes(notificationId)) return;
+    await markNotificationAsRead(todayKey, notificationId);
+    setReadNotificationIds((prev) => [...prev, notificationId]);
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    const unreadIds = notificationItems
+      .filter((item) => !item.isRead)
+      .map((item) => item.id);
+    if (unreadIds.length === 0) return;
+
+    await markNotificationsAsRead(todayKey, unreadIds);
+    setReadNotificationIds((prev) =>
+      Array.from(new Set([...prev, ...unreadIds])),
+    );
+  };
+
   const progress =
-    totalScheduledDoses > 0
-      ? completedDoses / totalScheduledDoses
-      : 0;
+    totalScheduledDoses > 0 ? completedDoses / totalScheduledDoses : 0;
+
+  const greeting = (() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 18) return "Good afternoon";
+    return "Good evening";
+  })();
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <LinearGradient colors={["#8ca6d8", "#627fb5"]} style={styles.header}>
+      <LinearGradient
+        colors={[
+          SkeuoTheme.colors.headerGradientStart,
+          SkeuoTheme.colors.headerGradientEnd,
+        ]}
+        style={[styles.header, { paddingTop: insets.top + 10 }]}
+      >
         <View style={styles.headerContent}>
           <View style={styles.headerTop}>
             <View style={styles.flex1}>
-              <Text style={styles.greeting}>Daily Progress</Text>
+              <Text style={styles.greeting}>{greeting}</Text>
+              <Text style={styles.greetingSub}>
+                Here is your medication plan for today
+              </Text>
             </View>
             <TouchableOpacity
               style={styles.notificationButton}
               onPress={() => setShowNotifications(true)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Ionicons name="notifications-outline" size={24} color="white" />
-              {scheduledDoses.length > 0 && (
+              {unreadNotificationCount > 0 && (
                 <View style={styles.notificationBadge}>
                   <Text style={styles.notificationCount}>
-                    {scheduledDoses.length}
+                    {unreadNotificationCount}
                   </Text>
                 </View>
               )}
@@ -322,6 +427,54 @@ export default function HomeScreen() {
       </LinearGradient>
 
       <View style={styles.content}>
+        <View style={styles.focusSection}>
+          <View style={styles.focusCard}>
+            <View style={styles.focusHeaderRow}>
+              <Text style={styles.focusTitle}>Dose Focus</Text>
+              {overdueCount > 0 ? (
+                <View style={styles.overdueBadge}>
+                  <Text style={styles.overdueText}>{overdueCount} overdue</Text>
+                </View>
+              ) : (
+                <View style={styles.onTrackBadge}>
+                  <Text style={styles.onTrackText}>On track</Text>
+                </View>
+              )}
+            </View>
+
+            {nextDueDose ? (
+              <>
+                <Text style={styles.focusMedication}>
+                  {nextDueDose.medication.name}
+                </Text>
+                <Text style={styles.focusMeta}>
+                  {nextDueDose.medication.dosage} • {nextDueDose.timeLabel}
+                </Text>
+                <TouchableOpacity
+                  style={styles.focusActionButton}
+                  onPress={() =>
+                    handleTakeDose(
+                      nextDueDose.medication,
+                      nextDueDose.scheduledTime,
+                    )
+                  }
+                >
+                  <Text style={styles.focusActionText}>Mark as Taken</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.focusMedication}>
+                  All scheduled doses are complete
+                </Text>
+                <Text style={styles.focusMeta}>
+                  Nice work. You are done for today.
+                </Text>
+              </>
+            )}
+          </View>
+        </View>
+
         <View style={styles.quickActionsContainer}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.quickActionsGrid}>
@@ -333,7 +486,12 @@ export default function HomeScreen() {
                     style={styles.actionGradient}
                   >
                     <View style={styles.actionContent}>
-                      <View style={styles.actionIcon}>
+                      <View
+                        style={[
+                          styles.actionIcon,
+                          { backgroundColor: `${action.color}55` },
+                        ]}
+                      >
                         <Ionicons name={action.icon} size={28} color="white" />
                       </View>
                       <Text style={styles.actionLabel}>{action.label}</Text>
@@ -356,7 +514,11 @@ export default function HomeScreen() {
           </View>
           {scheduledDoses.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="medical-outline" size={48} color="#ccc" />
+              <Ionicons
+                name="medical-outline"
+                size={48}
+                color={SkeuoTheme.colors.textTertiary}
+              />
               <Text style={styles.emptyStateText}>
                 No medications scheduled for today
               </Text>
@@ -369,9 +531,13 @@ export default function HomeScreen() {
               </Link>
             </View>
           ) : (
-            scheduledDoses.map((doseItem) => {
+            scheduledDosesSorted.map((doseItem) => {
               const { medication, scheduledTime, timeLabel } = doseItem;
               const taken = isDoseTaken(medication.id, scheduledTime);
+              const isOverdue =
+                Boolean(scheduledTime) &&
+                !taken &&
+                timeToTodayDate(scheduledTime as string) < now;
               return (
                 <View key={doseItem.id} style={styles.doseCard}>
                   <View
@@ -392,16 +558,29 @@ export default function HomeScreen() {
                       <Text style={styles.dosageInfo}>{medication.dosage}</Text>
                     </View>
                     <View style={styles.doseTime}>
-                      <Ionicons name="time-outline" size={16} color="#666" />
+                      <Ionicons
+                        name="time-outline"
+                        size={16}
+                        color={SkeuoTheme.colors.textSecondary}
+                      />
                       <Text style={styles.timeText}>{timeLabel}</Text>
                     </View>
+                    {!taken && (
+                      <Text style={styles.scheduleStateText}>
+                        {scheduledTime
+                          ? isOverdue
+                            ? "Due now"
+                            : "Upcoming"
+                          : "As needed"}
+                      </Text>
+                    )}
                   </View>
                   {taken ? (
                     <View style={[styles.takenBadge]}>
                       <Ionicons
                         name="checkmark-circle"
                         size={20}
-                        color="#4CAF50"
+                        color={SkeuoTheme.colors.success}
                       />
                       <Text style={styles.takenText}>Taken</Text>
                     </View>
@@ -434,21 +613,52 @@ export default function HomeScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Notifications</Text>
-              <TouchableOpacity
-                onPress={() => setShowNotifications(false)}
-                style={styles.closeButton}
-              >
-                <Ionicons name="close" size={24} color="#333" />
-              </TouchableOpacity>
+              <View>
+                <Text style={styles.modalTitle}>Notifications</Text>
+                <Text style={styles.modalSubtitle}>
+                  {unreadNotificationCount} unread of {notificationItems.length}
+                </Text>
+              </View>
+              <View style={styles.modalHeaderActions}>
+                <TouchableOpacity
+                  onPress={handleMarkAllNotificationsRead}
+                  style={styles.markAllButton}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.markAllText}>Mark all read</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setShowNotifications(false)}
+                  style={styles.closeButton}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color={SkeuoTheme.colors.textPrimary}
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
-            {scheduledDoses.map((doseItem) => (
-              <View key={doseItem.id} style={styles.notificationItem}>
+            {notificationItems.map((doseItem) => (
+              <TouchableOpacity
+                key={doseItem.id}
+                style={[
+                  styles.notificationItem,
+                  doseItem.isRead && styles.notificationItemRead,
+                ]}
+                onPress={() => handleMarkNotificationRead(doseItem.id)}
+                activeOpacity={0.8}
+              >
                 <View style={styles.notificationIcon}>
                   <Ionicons
-                    name="medical"
+                    name={doseItem.isRead ? "checkmark-done" : "medical"}
                     size={24}
-                    color={doseItem.medication.color}
+                    color={
+                      doseItem.isRead
+                        ? SkeuoTheme.colors.accentDark
+                        : doseItem.medication.color
+                    }
                   />
                 </View>
                 <View style={styles.notificationContent}>
@@ -458,9 +668,19 @@ export default function HomeScreen() {
                   <Text style={styles.notificationMessage}>
                     {doseItem.medication.dosage}
                   </Text>
-                  <Text style={styles.notificationTime}>{doseItem.timeLabel}</Text>
+                  <Text style={styles.notificationMeta}>
+                    {doseItem.scheduledTime
+                      ? doseItem.isOverdue
+                        ? "Overdue"
+                        : "Scheduled"
+                      : "As needed"}
+                  </Text>
+                  <Text style={styles.notificationTime}>
+                    {doseItem.timeLabel}
+                  </Text>
                 </View>
-              </View>
+                {!doseItem.isRead && <View style={styles.unreadDot} />}
+              </TouchableOpacity>
             ))}
           </View>
         </View>
@@ -475,7 +695,7 @@ const styles = StyleSheet.create({
     backgroundColor: SkeuoTheme.colors.pageBackground,
   },
   header: {
-    paddingTop: 50,
+    paddingTop: 12,
     paddingBottom: 25,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
@@ -496,9 +716,88 @@ const styles = StyleSheet.create({
     color: SkeuoTheme.colors.white,
     opacity: 0.9,
   },
+  greetingSub: {
+    marginTop: 2,
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.85)",
+  },
   content: {
     flex: 1,
     paddingTop: 20,
+  },
+  focusSection: {
+    paddingHorizontal: 20,
+    marginBottom: 18,
+  },
+  focusCard: {
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderRadius: SkeuoTheme.radius.md,
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    padding: 16,
+    shadowColor: "#5f807f",
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  focusHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  focusTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: SkeuoTheme.colors.textPrimary,
+  },
+  overdueBadge: {
+    backgroundColor: SkeuoTheme.colors.dangerSurface,
+    borderColor: SkeuoTheme.colors.dangerBorder,
+    borderWidth: 1,
+    borderRadius: SkeuoTheme.radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  overdueText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: SkeuoTheme.colors.danger,
+  },
+  onTrackBadge: {
+    backgroundColor: SkeuoTheme.colors.successSurface,
+    borderRadius: SkeuoTheme.radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  onTrackText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: SkeuoTheme.colors.success,
+  },
+  focusMedication: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: SkeuoTheme.colors.textPrimary,
+    marginBottom: 4,
+  },
+  focusMeta: {
+    fontSize: 14,
+    color: SkeuoTheme.colors.textSecondary,
+    marginBottom: 12,
+  },
+  focusActionButton: {
+    alignSelf: "flex-start",
+    backgroundColor: SkeuoTheme.colors.accent,
+    borderRadius: SkeuoTheme.radius.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  focusActionText: {
+    color: SkeuoTheme.colors.white,
+    fontSize: 13,
+    fontWeight: "700",
   },
   quickActionsContainer: {
     paddingHorizontal: 20,
@@ -566,7 +865,7 @@ const styles = StyleSheet.create({
     borderColor: SkeuoTheme.colors.border,
     padding: 16,
     marginBottom: 12,
-    shadowColor: "#8e9ab0",
+    shadowColor: "#5f807f",
     shadowOffset: { width: 5, height: 5 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -603,6 +902,12 @@ const styles = StyleSheet.create({
     marginLeft: 5,
     color: SkeuoTheme.colors.textSecondary,
     fontSize: 14,
+  },
+  scheduleStateText: {
+    fontSize: 12,
+    color: SkeuoTheme.colors.textTertiary,
+    marginTop: 4,
+    fontWeight: "600",
   },
   takeDoseButton: {
     paddingVertical: 8,
@@ -644,7 +949,10 @@ const styles = StyleSheet.create({
   },
   notificationButton: {
     position: "relative",
-    padding: 8,
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     borderRadius: 12,
     marginLeft: 8,
@@ -653,14 +961,14 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -4,
     right: -4,
-    backgroundColor: "#FF5252",
+    backgroundColor: SkeuoTheme.colors.danger,
     minWidth: 20,
     height: 20,
     borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#627fb5",
+    borderColor: SkeuoTheme.colors.headerGradientEnd,
     paddingHorizontal: 4,
   },
   notificationCount: {
@@ -675,7 +983,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: SkeuoTheme.colors.overlayDark,
     justifyContent: "flex-end",
   },
   modalContent: {
@@ -691,16 +999,38 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
+  modalHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
     color: SkeuoTheme.colors.textPrimary,
+  },
+  modalSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    color: SkeuoTheme.colors.textSecondary,
+  },
+  markAllButton: {
+    backgroundColor: SkeuoTheme.colors.accentSoft,
+    borderRadius: SkeuoTheme.radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  markAllText: {
+    color: SkeuoTheme.colors.accentDark,
+    fontSize: 12,
+    fontWeight: "700",
   },
   closeButton: {
     padding: 5,
   },
   notificationItem: {
     flexDirection: "row",
+    alignItems: "center",
     padding: 15,
     borderRadius: 12,
     backgroundColor: SkeuoTheme.colors.pageBackground,
@@ -708,11 +1038,14 @@ const styles = StyleSheet.create({
     borderColor: SkeuoTheme.colors.border,
     marginBottom: 10,
   },
+  notificationItemRead: {
+    opacity: 0.7,
+  },
   notificationIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#E8F5E9",
+    backgroundColor: SkeuoTheme.colors.successSurface,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 15,
@@ -729,22 +1062,34 @@ const styles = StyleSheet.create({
   notificationMessage: {
     fontSize: 14,
     color: SkeuoTheme.colors.textSecondary,
-    marginBottom: 4,
+    marginBottom: 2,
+  },
+  notificationMeta: {
+    fontSize: 12,
+    color: SkeuoTheme.colors.accentDark,
+    fontWeight: "600",
   },
   notificationTime: {
     fontSize: 12,
-    color: "#999",
+    color: SkeuoTheme.colors.textTertiary,
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: SkeuoTheme.colors.accent,
+    marginLeft: 10,
   },
   emptyState: {
     alignItems: "center",
     padding: 30,
-    backgroundColor: "white",
+    backgroundColor: SkeuoTheme.colors.cardBackground,
     borderRadius: 16,
     marginTop: 10,
   },
   emptyStateText: {
     fontSize: 16,
-    color: "#666",
+    color: SkeuoTheme.colors.textSecondary,
     marginTop: 10,
     marginBottom: 20,
   },
@@ -761,14 +1106,14 @@ const styles = StyleSheet.create({
   takenBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E8F5E9",
+    backgroundColor: SkeuoTheme.colors.successSurface,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
     marginLeft: 10,
   },
   takenText: {
-    color: "#4CAF50",
+    color: SkeuoTheme.colors.success,
     fontWeight: "600",
     fontSize: 14,
     marginLeft: 4,

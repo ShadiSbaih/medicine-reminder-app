@@ -5,13 +5,13 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
     Alert,
-    Platform,
     ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SkeuoTheme } from "../../constants/theme";
 import {
     DoseHistory,
@@ -24,6 +24,7 @@ import {
 type EnrichedDoseHistory = DoseHistory & { medication?: Medication };
 
 export default function HistoryScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [history, setHistory] = useState<EnrichedDoseHistory[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<
@@ -52,21 +53,24 @@ export default function HistoryScreen() {
   useFocusEffect(
     useCallback(() => {
       loadHistory();
-    }, [loadHistory])
+    }, [loadHistory]),
   );
 
   const groupHistoryByDate = (source: EnrichedDoseHistory[]) => {
-    const grouped = source.reduce((acc, dose) => {
-      const date = new Date(dose.timestamp).toDateString();
-      if (!acc[date]) {
-        acc[date] = [];
-      }
-      acc[date].push(dose);
-      return acc;
-    }, {} as Record<string, EnrichedDoseHistory[]>);
+    const grouped = source.reduce(
+      (acc, dose) => {
+        const date = new Date(dose.timestamp).toDateString();
+        if (!acc[date]) {
+          acc[date] = [];
+        }
+        acc[date].push(dose);
+        return acc;
+      },
+      {} as Record<string, EnrichedDoseHistory[]>,
+    );
 
     return Object.entries(grouped).sort(
-      (a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime()
+      (a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime(),
     );
   };
 
@@ -102,26 +106,34 @@ export default function HistoryScreen() {
             }
           },
         },
-      ]
+      ],
     );
   };
 
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={["#8ca6d8", "#627fb5"]}
-        style={styles.headerGradient}
+        colors={[
+          SkeuoTheme.colors.headerGradientStart,
+          SkeuoTheme.colors.headerGradientEnd,
+        ]}
+        style={[styles.headerGradient, { height: insets.top + 92 }]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
       />
 
-      <View style={styles.content}>
+      <View style={[styles.content, { paddingTop: insets.top + 6 }]}>
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="chevron-back" size={28} color="#1a8e2d" />
+            <Ionicons
+              name="chevron-back"
+              size={28}
+              color={SkeuoTheme.colors.accentDark}
+            />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>History Log</Text>
         </View>
@@ -201,7 +213,11 @@ export default function HistoryScreen() {
                   <View
                     style={[
                       styles.medicationColor,
-                      { backgroundColor: dose.medication?.color || "#ccc" },
+                      {
+                        backgroundColor:
+                          dose.medication?.color ||
+                          SkeuoTheme.colors.textTertiary,
+                      },
                     ]}
                   />
                   <View style={styles.medicationInfo}>
@@ -228,15 +244,20 @@ export default function HistoryScreen() {
                       <View
                         style={[
                           styles.statusBadge,
-                          { backgroundColor: "#E8F5E9" },
+                          { backgroundColor: SkeuoTheme.colors.successSurface },
                         ]}
                       >
                         <Ionicons
                           name="checkmark-circle"
                           size={16}
-                          color="#4CAF50"
+                          color={SkeuoTheme.colors.success}
                         />
-                        <Text style={[styles.statusText, { color: "#4CAF50" }]}>
+                        <Text
+                          style={[
+                            styles.statusText,
+                            { color: SkeuoTheme.colors.success },
+                          ]}
+                        >
                           Taken
                         </Text>
                       </View>
@@ -244,15 +265,20 @@ export default function HistoryScreen() {
                       <View
                         style={[
                           styles.statusBadge,
-                          { backgroundColor: "#FFEBEE" },
+                          { backgroundColor: SkeuoTheme.colors.dangerSurface },
                         ]}
                       >
                         <Ionicons
                           name="close-circle"
                           size={16}
-                          color="#F44336"
+                          color={SkeuoTheme.colors.danger}
                         />
-                        <Text style={[styles.statusText, { color: "#F44336" }]}>
+                        <Text
+                          style={[
+                            styles.statusText,
+                            { color: SkeuoTheme.colors.danger },
+                          ]}
+                        >
                           Missed
                         </Text>
                       </View>
@@ -268,7 +294,11 @@ export default function HistoryScreen() {
               style={styles.clearDataButton}
               onPress={handleClearAllData}
             >
-              <Ionicons name="trash-outline" size={20} color="#FF5252" />
+              <Ionicons
+                name="trash-outline"
+                size={20}
+                color={SkeuoTheme.colors.danger}
+              />
               <Text style={styles.clearDataText}>Clear All Data</Text>
             </TouchableOpacity>
           </View>
@@ -288,29 +318,30 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: Platform.OS === "ios" ? 140 : 120,
+    height: 120,
   },
   content: {
     flex: 1,
-    paddingTop: Platform.OS === "ios" ? 50 : 30,
+    paddingTop: 0,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
+    minHeight: 56,
     paddingBottom: 20,
     zIndex: 1,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: SkeuoTheme.colors.cardBackground,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
+    shadowColor: "#5f807f",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -347,7 +378,7 @@ const styles = StyleSheet.create({
   filterText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#666",
+    color: SkeuoTheme.colors.textSecondary,
   },
   filterTextActive: {
     color: "white",
@@ -363,7 +394,7 @@ const styles = StyleSheet.create({
   dateHeader: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#666",
+    color: SkeuoTheme.colors.textSecondary,
     marginBottom: 12,
   },
   historyCard: {
@@ -375,7 +406,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    shadowColor: "#8e9ab0",
+    shadowColor: "#5f807f",
     shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -393,21 +424,21 @@ const styles = StyleSheet.create({
   medicationName: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
+    color: SkeuoTheme.colors.textPrimary,
     marginBottom: 4,
   },
   medicationDosage: {
     fontSize: 14,
-    color: "#666",
+    color: SkeuoTheme.colors.textSecondary,
     marginBottom: 2,
   },
   timeText: {
     fontSize: 14,
-    color: "#666",
+    color: SkeuoTheme.colors.textSecondary,
   },
   scheduledText: {
     fontSize: 12,
-    color: "#8a97ac",
+    color: SkeuoTheme.colors.textTertiary,
     marginTop: 2,
   },
   statusContainer: {
@@ -434,15 +465,15 @@ const styles = StyleSheet.create({
   clearDataButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFEBEE",
+    backgroundColor: SkeuoTheme.colors.dangerSurface,
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#FFCDD2",
+    borderColor: SkeuoTheme.colors.dangerBorder,
   },
   clearDataText: {
-    color: "#FF5252",
+    color: SkeuoTheme.colors.danger,
     fontSize: 16,
     fontWeight: "600",
     marginLeft: 8,

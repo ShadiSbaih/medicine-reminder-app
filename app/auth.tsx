@@ -4,6 +4,7 @@ import * as LocalAuthentication from "expo-local-authentication";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
+    Animated,
     Dimensions,
     Image,
     StyleSheet,
@@ -16,209 +17,273 @@ import { SkeuoTheme } from "../constants/theme";
 const { width } = Dimensions.get("window");
 
 export default function AuthScreen() {
-    const router = useRouter();
+  const router = useRouter();
+  const brandFadeAnim = useState(new Animated.Value(0))[0];
+  const brandScaleAnim = useState(new Animated.Value(0.8))[0];
+  const cardFadeAnim = useState(new Animated.Value(0))[0];
+  const cardTranslateAnim = useState(new Animated.Value(16))[0];
 
-    const [isAuthenticating, setIsAuthenticating] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [hasBiometrics, setHasBiometrics] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hasBiometrics, setHasBiometrics] = useState(false);
 
+  const checkBiometrics = async () => {
+    const hasHardware = await LocalAuthentication.hasHardwareAsync();
+    const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+    setHasBiometrics(hasHardware && isEnrolled);
+  };
 
-    const checkBiometrics = async () => {
-        const hasHardware = await LocalAuthentication.hasHardwareAsync();
-        const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-        setHasBiometrics(hasHardware && isEnrolled);
-    };
+  const authenticate = async () => {
+    try {
+      setIsAuthenticating(true);
+      setError(null);
 
-    const authenticate = async () => {
-        try {
-            setIsAuthenticating(true);
-            setError(null);
+      // Check if device has biometric hardware
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const hasBiometrics = await LocalAuthentication.isEnrolledAsync();
 
-            // Check if device has biometric hardware
-            const hasHardware = await LocalAuthentication.hasHardwareAsync();
-            const hasBiometrics = await LocalAuthentication.isEnrolledAsync();
+      const auth = await LocalAuthentication.authenticateAsync({
+        promptMessage:
+          hasHardware && hasBiometrics
+            ? "Use Face ID or Touch ID"
+            : "Enter your PIN to access Pillora",
+        fallbackLabel: "Use PIN",
+        cancelLabel: "Cancel",
+        disableDeviceFallback: false,
+      });
 
-            const auth = await LocalAuthentication.authenticateAsync({
-                promptMessage:
-                    hasHardware && hasBiometrics
-                        ? "Use Face ID or Touch ID"
-                        : "Enter your PIN to access Pillora",
-                fallbackLabel: "Use PIN",
-                cancelLabel: "Cancel",
-                disableDeviceFallback: false,
-            });
+      if (auth.success) {
+        router.replace("/home");
+      } else {
+        setError("Authentication failed. Please try again.");
+      }
+    } catch (err) {
+      setError("An error occurred. Please try again.");
+      console.error(err);
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
 
-            if (auth.success) {
-                router.replace("/home");
-            } else {
-                setError("Authentication failed. Please try again.");
-            }
-        } catch (err) {
-            setError("An error occurred. Please try again.");
-            console.error(err);
-        } finally {
-            setIsAuthenticating(false);
-        }
-    };
+  useEffect(() => {
+    checkBiometrics();
 
-    useEffect(() => {
-        checkBiometrics();
-    }, []);
+    Animated.parallel([
+      Animated.timing(brandFadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(brandScaleAnim, {
+        toValue: 1,
+        tension: 40,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardFadeAnim, {
+        toValue: 1,
+        duration: 500,
+        delay: 180,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardTranslateAnim, {
+        toValue: 0,
+        duration: 500,
+        delay: 180,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [brandFadeAnim, brandScaleAnim, cardFadeAnim, cardTranslateAnim]);
 
+  return (
+    <LinearGradient colors={["#bfe9df", "#69c4b4"]} style={styles.container}>
+      <View style={styles.content}>
+        <Animated.View
+          style={[
+            styles.brandContainer,
+            {
+              opacity: brandFadeAnim,
+              transform: [{ scale: brandScaleAnim }],
+            },
+          ]}
+        >
+          <View style={styles.iconContainer}>
+            <Image
+              source={require("../assets/images/splash_logo.png")}
+              style={styles.brandLogo}
+              resizeMode="contain"
+            />
+          </View>
 
-    return (
-        <LinearGradient colors={["#8ca6d8", "#627fb5"]} style={styles.container}>
-            <View style={styles.content}>
-                <View style={styles.iconContainer}>
-                    <Image
-                        source={require("../assets/images/splash_logo.png")}
-                        style={styles.brandLogo}
-                        resizeMode="contain"
-                    />
-                </View>
+          <Image
+            source={require("../assets/images/title.png")}
+            style={styles.titleImage}
+            resizeMode="contain"
+          />
+          <Text style={styles.subtitle}>
+            Your Personal Medication Assistant
+          </Text>
+        </Animated.View>
 
-                <Text style={styles.title}>Pillora</Text>
-                <Text style={styles.subtitle}>Your Personal Medication Assistant</Text>
+        <Animated.View
+          style={[
+            styles.card,
+            {
+              opacity: cardFadeAnim,
+              transform: [{ translateY: cardTranslateAnim }],
+            },
+          ]}
+        >
+          <Text style={styles.welcomeText}>Welcome Back!</Text>
+          <Text style={styles.instructionText}>
+            {hasBiometrics
+              ? "Use Face ID/Touch ID or PIN to access your medications"
+              : "Enter your PIN to access your medications"}
+          </Text>
 
-                <View style={styles.card}>
-                    <Text style={styles.welcomeText}>Welcome Back!</Text>
-                    <Text style={styles.instructionText}>
-                        {hasBiometrics
-                            ? "Use Face ID/Touch ID or PIN to access your medications"
-                            : "Enter your PIN to access your medications"}
-                    </Text>
+          <TouchableOpacity
+            style={[styles.button, isAuthenticating && styles.buttonDisabled]}
+            onPress={authenticate}
+            disabled={isAuthenticating}
+          >
+            <Ionicons
+              name={hasBiometrics ? "finger-print-outline" : "keypad-outline"}
+              size={24}
+              color="white"
+              style={styles.buttonIcon}
+            />
+            <Text style={styles.buttonText}>
+              {isAuthenticating
+                ? "Verifying..."
+                : hasBiometrics
+                  ? "Authenticate"
+                  : "Enter PIN"}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ marginTop: 20 }}
+            onPress={() => router.push("/home")}
+          >
+            <Text style={{ marginTop: 12, color: SkeuoTheme.colors.accent }}>
+              Enter as Developer
+            </Text>
+          </TouchableOpacity>
 
-                    <TouchableOpacity
-                        style={[styles.button, isAuthenticating && styles.buttonDisabled]}
-                        onPress={authenticate}
-                        disabled={isAuthenticating}
-                    >
-                        <Ionicons
-                            name={hasBiometrics ? "finger-print-outline" : "keypad-outline"}
-                            size={24}
-                            color="white"
-                            style={styles.buttonIcon}
-                        />
-                        <Text style={styles.buttonText}>
-                            {isAuthenticating
-                                ? "Verifying..."
-                                : hasBiometrics
-                                    ? "Authenticate"
-                                    : "Enter PIN"}
-                        </Text>
-                    </TouchableOpacity>
-
-                    {error && (
-                        <View style={styles.errorContainer}>
-                            <Ionicons name="alert-circle" size={20} color="#f44336" />
-                            <Text style={styles.errorText}>{error}</Text>
-                        </View>
-                    )}
-                </View>
+          {error && (
+            <View style={styles.errorContainer}>
+              <Ionicons
+                name="alert-circle"
+                size={20}
+                color={SkeuoTheme.colors.danger}
+              />
+              <Text style={styles.errorText}>{error}</Text>
             </View>
-        </LinearGradient>
-    );
+          )}
+        </Animated.View>
+      </View>
+    </LinearGradient>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
+  container: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    padding: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  brandContainer: {
+    alignItems: "center",
+  },
+  iconContainer: {
+    width: 120,
+    height: 120,
+    backgroundColor: "rgba(234, 247, 243, 0.64)",
+    borderRadius: 60,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  brandLogo: {
+    width: 90,
+    height: 90,
+  },
+  titleImage: {
+    width: 220,
+    height: 74,
+    marginTop: 4,
+  },
+  subtitle: {
+    fontSize: 18,
+    color: "#0f4c49",
+    marginBottom: 40,
+    textAlign: "center",
+    fontWeight: "500",
+  },
+  card: {
+    backgroundColor: SkeuoTheme.colors.cardBackground,
+    borderRadius: SkeuoTheme.radius.lg,
+    padding: 30,
+    width: width - 40,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: SkeuoTheme.colors.border,
+    shadowColor: "#5f807f",
+    shadowOffset: {
+      width: 6,
+      height: 6,
     },
-    content: {
-        flex: 1,
-        padding: 20,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    iconContainer: {
-        width: 120,
-        height: 120,
-        backgroundColor: "rgba(230, 236, 245, 0.7)",
-        borderRadius: 60,
-        justifyContent: "center",
-        alignItems: "center",
-        marginBottom: 20,
-    },
-    brandLogo: {
-        width: 90,
-        height: 90,
-    },
-    title: {
-        fontSize: 36,
-        fontWeight: "bold",
-        color: SkeuoTheme.colors.white,
-        marginBottom: 10,
-        textShadowColor: "rgba(0, 0, 0, 0.2)",
-        textShadowOffset: { width: 1, height: 1 },
-        textShadowRadius: 3,
-    },
-    subtitle: {
-        fontSize: 18,
-        color: "rgba(255, 255, 255, 0.95)",
-        marginBottom: 40,
-        textAlign: "center",
-    },
-    card: {
-        backgroundColor: SkeuoTheme.colors.cardBackground,
-        borderRadius: SkeuoTheme.radius.lg,
-        padding: 30,
-        width: width - 40,
-        alignItems: "center",
-        borderWidth: 1,
-        borderColor: SkeuoTheme.colors.border,
-        shadowColor: "#8e9ab0",
-        shadowOffset: {
-            width: 6,
-            height: 6,
-        },
-        shadowOpacity: 0.3,
-        shadowRadius: 10,
-        elevation: 7,
-    },
-    welcomeText: {
-        fontSize: 24,
-        fontWeight: "bold",
-        color: SkeuoTheme.colors.textPrimary,
-        marginBottom: 10,
-    },
-    instructionText: {
-        fontSize: 16,
-        color: SkeuoTheme.colors.textSecondary,
-        textAlign: "center",
-        marginBottom: 30,
-    },
-    button: {
-        backgroundColor: SkeuoTheme.colors.accent,
-        paddingVertical: 15,
-        paddingHorizontal: 30,
-        borderRadius: SkeuoTheme.radius.md,
-        width: "100%",
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    buttonDisabled: {
-        opacity: 0.7,
-    },
-    buttonIcon: {
-        marginRight: 10,
-    },
-    buttonText: {
-        color: "white",
-        fontSize: 16,
-        fontWeight: "600",
-    },
-    errorContainer: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginTop: 20,
-        padding: 10,
-        backgroundColor: "#f9e5e5",
-        borderRadius: 8,
-    },
-    errorText: {
-        color: "#f44336",
-        marginLeft: 8,
-        fontSize: 14,
-    },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 7,
+  },
+  welcomeText: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: SkeuoTheme.colors.textPrimary,
+    marginBottom: 10,
+  },
+  instructionText: {
+    fontSize: 16,
+    color: SkeuoTheme.colors.textSecondary,
+    textAlign: "center",
+    marginBottom: 30,
+  },
+  button: {
+    backgroundColor: SkeuoTheme.colors.accent,
+    paddingVertical: 15,
+    paddingHorizontal: 30,
+    borderRadius: SkeuoTheme.radius.md,
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  buttonIcon: {
+    marginRight: 10,
+  },
+  buttonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 20,
+    padding: 10,
+    backgroundColor: SkeuoTheme.colors.dangerSurface,
+    borderRadius: 8,
+  },
+  errorText: {
+    color: SkeuoTheme.colors.danger,
+    marginLeft: 8,
+    fontSize: 14,
+  },
 });

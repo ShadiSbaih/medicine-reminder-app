@@ -4,21 +4,21 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-    Alert,
-    Dimensions,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SkeuoTheme } from "../../constants/theme";
 import {
-    scheduleMedicationReminder,
-    scheduleRefillReminder,
+  scheduleMedicationReminder,
+  scheduleRefillReminder,
 } from "../../utils/notifications";
 import { addMedication } from "../../utils/storage";
 
@@ -61,6 +61,7 @@ const DURATIONS = [
 ];
 
 export default function AddMedicationScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [form, setForm] = useState({
     name: "",
@@ -140,7 +141,7 @@ export default function AddMedicationScreen() {
       setIsSubmitting(true);
 
       // Generate a random color
-      const colors = ["#4CAF50", "#2196F3", "#FF9800", "#E91E63", "#9C27B0"];
+      const colors = ["#2DB19A", "#1B9F88", "#0F7267", "#177C71", "#2A9B82"];
       const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
       const medicationData = {
@@ -172,7 +173,7 @@ export default function AddMedicationScreen() {
             onPress: () => router.back(),
           },
         ],
-        { cancelable: false }
+        { cancelable: false },
       );
     } catch (error) {
       console.error("Save error:", error);
@@ -180,7 +181,7 @@ export default function AddMedicationScreen() {
         "Error",
         "Failed to save medication. Please try again.",
         [{ text: "OK" }],
-        { cancelable: false }
+        { cancelable: false },
       );
     } finally {
       setIsSubmitting(false);
@@ -231,7 +232,11 @@ export default function AddMedicationScreen() {
               <Ionicons
                 name={freq.icon}
                 size={24}
-                color={selectedFrequency === freq.label ? "white" : "#666"}
+                color={
+                  selectedFrequency === freq.label
+                    ? "white"
+                    : SkeuoTheme.colors.textSecondary
+                }
               />
             </View>
             <Text
@@ -287,19 +292,27 @@ export default function AddMedicationScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={["#8ca6d8", "#627fb5"]}
-        style={styles.headerGradient}
+        colors={[
+          SkeuoTheme.colors.headerGradientStart,
+          SkeuoTheme.colors.headerGradientEnd,
+        ]}
+        style={[styles.headerGradient, { height: insets.top + 94 }]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
       />
 
-      <View style={styles.content}>
+      <View style={[styles.content, { paddingTop: insets.top + 8 }]}>
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="chevron-back" size={28} color="#1a8e2d" />
+            <Ionicons
+              name="chevron-back"
+              size={28}
+              color={SkeuoTheme.colors.accentDark}
+            />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>New Medication</Text>
         </View>
@@ -315,7 +328,7 @@ export default function AddMedicationScreen() {
               <TextInput
                 style={[styles.mainInput, errors.name && styles.inputError]}
                 placeholder="Medication Name"
-                placeholderTextColor="#999"
+                placeholderTextColor={SkeuoTheme.colors.textTertiary}
                 value={form.name}
                 onChangeText={(text) => {
                   setForm({ ...form, name: text });
@@ -332,7 +345,7 @@ export default function AddMedicationScreen() {
               <TextInput
                 style={[styles.mainInput, errors.dosage && styles.inputError]}
                 placeholder="Dosage (e.g., 500mg)"
-                placeholderTextColor="#999"
+                placeholderTextColor={SkeuoTheme.colors.textTertiary}
                 value={form.dosage}
                 onChangeText={(text) => {
                   setForm({ ...form, dosage: text });
@@ -366,12 +379,20 @@ export default function AddMedicationScreen() {
               onPress={() => setShowDatePicker(true)}
             >
               <View style={styles.dateIconContainer}>
-                <Ionicons name="calendar" size={20} color="#1a8e2d" />
+                <Ionicons
+                  name="calendar"
+                  size={20}
+                  color={SkeuoTheme.colors.accentDark}
+                />
               </View>
               <Text style={styles.dateButtonText}>
                 Starts {form.startDate.toLocaleDateString()}
               </Text>
-              <Ionicons name="chevron-forward" size={20} color="#666" />
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={SkeuoTheme.colors.textSecondary}
+              />
             </TouchableOpacity>
 
             {showDatePicker && (
@@ -398,10 +419,18 @@ export default function AddMedicationScreen() {
                     }}
                   >
                     <View style={styles.timeIconContainer}>
-                      <Ionicons name="time-outline" size={20} color="#1a8e2d" />
+                      <Ionicons
+                        name="time-outline"
+                        size={20}
+                        color={SkeuoTheme.colors.accentDark}
+                      />
                     </View>
                     <Text style={styles.timeButtonText}>{time}</Text>
-                    <Ionicons name="chevron-forward" size={20} color="#666" />
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={SkeuoTheme.colors.textSecondary}
+                    />
                   </TouchableOpacity>
                 ))}
               </View>
@@ -429,7 +458,7 @@ export default function AddMedicationScreen() {
                     setForm((prev) => ({
                       ...prev,
                       times: prev.times.map((t, i) =>
-                        i === selectedTimeIndex ? newTime : t
+                        i === selectedTimeIndex ? newTime : t,
                       ),
                     }));
                   }
@@ -444,7 +473,11 @@ export default function AddMedicationScreen() {
               <View style={styles.switchRow}>
                 <View style={styles.switchLabelContainer}>
                   <View style={styles.iconContainer}>
-                    <Ionicons name="notifications" size={20} color="#1a8e2d" />
+                    <Ionicons
+                      name="notifications"
+                      size={20}
+                      color={SkeuoTheme.colors.accentDark}
+                    />
                   </View>
                   <View>
                     <Text style={styles.switchLabel}>Reminders</Text>
@@ -458,7 +491,10 @@ export default function AddMedicationScreen() {
                   onValueChange={(value) =>
                     setForm({ ...form, reminderEnabled: value })
                   }
-                  trackColor={{ false: "#ddd", true: "#1a8e2d" }}
+                  trackColor={{
+                    false: SkeuoTheme.colors.border,
+                    true: SkeuoTheme.colors.accent,
+                  }}
                   thumbColor="white"
                 />
               </View>
@@ -471,7 +507,11 @@ export default function AddMedicationScreen() {
               <View style={styles.switchRow}>
                 <View style={styles.switchLabelContainer}>
                   <View style={styles.iconContainer}>
-                    <Ionicons name="reload" size={20} color="#1a8e2d" />
+                    <Ionicons
+                      name="reload"
+                      size={20}
+                      color={SkeuoTheme.colors.accentDark}
+                    />
                   </View>
                   <View>
                     <Text style={styles.switchLabel}>Refill Tracking</Text>
@@ -492,7 +532,10 @@ export default function AddMedicationScreen() {
                       });
                     }
                   }}
-                  trackColor={{ false: "#ddd", true: "#1a8e2d" }}
+                  trackColor={{
+                    false: SkeuoTheme.colors.border,
+                    true: SkeuoTheme.colors.accent,
+                  }}
                   thumbColor="white"
                 />
               </View>
@@ -506,7 +549,7 @@ export default function AddMedicationScreen() {
                           errors.currentSupply && styles.inputError,
                         ]}
                         placeholder="Current Supply"
-                        placeholderTextColor="#999"
+                        placeholderTextColor={SkeuoTheme.colors.textTertiary}
                         value={form.currentSupply}
                         onChangeText={(text) => {
                           setForm({ ...form, currentSupply: text });
@@ -529,7 +572,7 @@ export default function AddMedicationScreen() {
                           errors.refillAt && styles.inputError,
                         ]}
                         placeholder="Alert at"
-                        placeholderTextColor="#999"
+                        placeholderTextColor={SkeuoTheme.colors.textTertiary}
                         value={form.refillAt}
                         onChangeText={(text) => {
                           setForm({ ...form, refillAt: text });
@@ -555,7 +598,7 @@ export default function AddMedicationScreen() {
               <TextInput
                 style={styles.textArea}
                 placeholder="Add notes or special instructions..."
-                placeholderTextColor="#999"
+                placeholderTextColor={SkeuoTheme.colors.textTertiary}
                 value={form.notes}
                 onChangeText={(text) => setForm({ ...form, notes: text })}
                 multiline
@@ -566,7 +609,7 @@ export default function AddMedicationScreen() {
           </View>
         </ScrollView>
 
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
           <TouchableOpacity
             style={[
               styles.saveButton,
@@ -576,7 +619,10 @@ export default function AddMedicationScreen() {
             disabled={isSubmitting}
           >
             <LinearGradient
-              colors={["#4f78c2", "#355b9f"]}
+              colors={[
+                SkeuoTheme.colors.headerGradientStart,
+                SkeuoTheme.colors.headerGradientEnd,
+              ]}
               style={styles.saveButtonGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
@@ -609,29 +655,30 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: Platform.OS === "ios" ? 140 : 120,
+    height: 120,
   },
   content: {
     flex: 1,
-    paddingTop: Platform.OS === "ios" ? 50 : 30,
+    paddingTop: 0,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
+    minHeight: 56,
     paddingBottom: 20,
     zIndex: 1,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: SkeuoTheme.colors.cardBackground,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    shadowColor: "#8e9ab0",
+    shadowColor: "#5f807f",
     shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -655,13 +702,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#1a1a1a",
+    color: SkeuoTheme.colors.textPrimary,
     marginBottom: 15,
     marginTop: 10,
   },
   mainInput: {
     fontSize: 20,
-    color: "#333",
+    color: SkeuoTheme.colors.textPrimary,
     padding: 15,
   },
   optionsGrid: {
@@ -678,7 +725,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    shadowColor: "#8e9ab0",
+    shadowColor: "#5f807f",
     shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -692,7 +739,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: SkeuoTheme.colors.neutralSurface,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 10,
@@ -703,7 +750,7 @@ const styles = StyleSheet.create({
   optionLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#333",
+    color: SkeuoTheme.colors.textPrimary,
     textAlign: "center",
   },
   selectedOptionLabel: {
@@ -712,7 +759,7 @@ const styles = StyleSheet.create({
   durationNumber: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#1a8e2d",
+    color: SkeuoTheme.colors.accentDark,
     marginBottom: 5,
   },
   selectedDurationNumber: {
@@ -724,7 +771,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    shadowColor: "#8e9ab0",
+    shadowColor: "#5f807f",
     shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -739,7 +786,7 @@ const styles = StyleSheet.create({
     marginTop: 15,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    shadowColor: "#8e9ab0",
+    shadowColor: "#5f807f",
     shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -749,7 +796,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: SkeuoTheme.colors.neutralSurface,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 10,
@@ -757,7 +804,7 @@ const styles = StyleSheet.create({
   dateButtonText: {
     flex: 1,
     fontSize: 16,
-    color: "#333",
+    color: SkeuoTheme.colors.textPrimary,
   },
   card: {
     backgroundColor: SkeuoTheme.colors.cardBackground,
@@ -765,7 +812,7 @@ const styles = StyleSheet.create({
     padding: 20,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    shadowColor: "#8e9ab0",
+    shadowColor: "#5f807f",
     shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -785,7 +832,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: SkeuoTheme.colors.neutralSurface,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 15,
@@ -793,11 +840,11 @@ const styles = StyleSheet.create({
   switchLabel: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
+    color: SkeuoTheme.colors.textPrimary,
   },
   switchSubLabel: {
     fontSize: 13,
-    color: "#666",
+    color: SkeuoTheme.colors.textSecondary,
     marginTop: 2,
   },
   inputRow: {
@@ -811,14 +858,14 @@ const styles = StyleSheet.create({
   input: {
     padding: 15,
     fontSize: 16,
-    color: "#333",
+    color: SkeuoTheme.colors.textPrimary,
   },
   textAreaContainer: {
     backgroundColor: SkeuoTheme.colors.cardBackground,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    shadowColor: "#8e9ab0",
+    shadowColor: "#5f807f",
     shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -828,13 +875,13 @@ const styles = StyleSheet.create({
     height: 100,
     padding: 15,
     fontSize: 16,
-    color: "#333",
+    color: SkeuoTheme.colors.textPrimary,
   },
   footer: {
     padding: 20,
     backgroundColor: SkeuoTheme.colors.pageBackground,
     borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
+    borderTopColor: SkeuoTheme.colors.border,
   },
   saveButton: {
     borderRadius: 16,
@@ -861,15 +908,15 @@ const styles = StyleSheet.create({
     backgroundColor: SkeuoTheme.colors.cardBackground,
   },
   cancelButtonText: {
-    color: "#666",
+    color: SkeuoTheme.colors.textSecondary,
     fontSize: 16,
     fontWeight: "600",
   },
   inputError: {
-    borderColor: "#FF5252",
+    borderColor: SkeuoTheme.colors.danger,
   },
   errorText: {
-    color: "#FF5252",
+    color: SkeuoTheme.colors.danger,
     fontSize: 12,
     marginTop: 4,
     marginLeft: 12,
@@ -886,7 +933,7 @@ const styles = StyleSheet.create({
   timesTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
+    color: SkeuoTheme.colors.textPrimary,
     marginBottom: 10,
   },
   timeButton: {
@@ -898,7 +945,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    shadowColor: "#8e9ab0",
+    shadowColor: "#5f807f",
     shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -908,7 +955,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: SkeuoTheme.colors.neutralSurface,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 10,
@@ -916,6 +963,6 @@ const styles = StyleSheet.create({
   timeButtonText: {
     flex: 1,
     fontSize: 16,
-    color: "#333",
+    color: SkeuoTheme.colors.textPrimary,
   },
 });

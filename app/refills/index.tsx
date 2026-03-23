@@ -1,18 +1,18 @@
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
   ScrollView,
-  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect } from "@react-navigation/native";
-import { getMedications, Medication } from "../../utils/storage";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SkeuoTheme } from "../../constants/theme";
+import { getMedications, Medication } from "../../utils/storage";
 
 type RefillInsight = Medication & {
   dosesPerDay: number;
@@ -27,13 +27,16 @@ const urgencyMeta = {
 } as const;
 
 export default function RefillsScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [insights, setInsights] = useState<RefillInsight[]>([]);
 
   const loadRefills = useCallback(async () => {
     const medications = await getMedications();
     const refillItems = medications
-      .filter((medication) => medication.refillReminder || medication.totalSupply > 0)
+      .filter(
+        (medication) => medication.refillReminder || medication.totalSupply > 0,
+      )
       .map((medication) => {
         const dosesPerDay = Math.max(medication.times.length, 1);
         const daysLeft =
@@ -45,8 +48,8 @@ export default function RefillsScreen() {
           medication.currentSupply <= medication.refillAt
             ? "critical"
             : daysLeft <= 7
-            ? "soon"
-            : "healthy";
+              ? "soon"
+              : "healthy";
 
         return {
           ...medication,
@@ -63,24 +66,39 @@ export default function RefillsScreen() {
   useFocusEffect(
     useCallback(() => {
       loadRefills();
-    }, [loadRefills])
+    }, [loadRefills]),
   );
 
-  const criticalCount = insights.filter((item) => item.refillUrgency === "critical").length;
-  const soonCount = insights.filter((item) => item.refillUrgency === "soon").length;
+  const criticalCount = insights.filter(
+    (item) => item.refillUrgency === "critical",
+  ).length;
+  const soonCount = insights.filter(
+    (item) => item.refillUrgency === "soon",
+  ).length;
 
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={["#7f9dd4", "#5f7db5"]}
-        style={styles.headerGradient}
+        colors={[
+          SkeuoTheme.colors.headerGradientStart,
+          SkeuoTheme.colors.headerGradientEnd,
+        ]}
+        style={[styles.headerGradient, { height: insets.top + 96 }]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
       />
-      <View style={styles.content}>
+      <View style={[styles.content, { paddingTop: insets.top + 8 }]}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={28} color={SkeuoTheme.colors.textPrimary} />
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons
+              name="chevron-back"
+              size={28}
+              color={SkeuoTheme.colors.textPrimary}
+            />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Refill Tracker</Text>
         </View>
@@ -103,7 +121,11 @@ export default function RefillsScreen() {
         <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
           {insights.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Ionicons name="cube-outline" size={34} color={SkeuoTheme.colors.textSecondary} />
+              <Ionicons
+                name="cube-outline"
+                size={34}
+                color={SkeuoTheme.colors.textSecondary}
+              />
               <Text style={styles.emptyTitle}>No inventory tracked yet</Text>
               <Text style={styles.emptyText}>
                 Enable refill tracking when adding a medication to see insights.
@@ -113,7 +135,10 @@ export default function RefillsScreen() {
             insights.map((item) => {
               const progress =
                 item.totalSupply > 0
-                  ? Math.max(0, Math.min(1, item.currentSupply / item.totalSupply))
+                  ? Math.max(
+                      0,
+                      Math.min(1, item.currentSupply / item.totalSupply),
+                    )
                   : 0;
 
               return (
@@ -121,7 +146,10 @@ export default function RefillsScreen() {
                   <View style={styles.cardTopRow}>
                     <View style={styles.medMain}>
                       <View
-                        style={[styles.colorDot, { backgroundColor: item.color }]}
+                        style={[
+                          styles.colorDot,
+                          { backgroundColor: item.color },
+                        ]}
                       />
                       <View>
                         <Text style={styles.medName}>{item.name}</Text>
@@ -151,12 +179,21 @@ export default function RefillsScreen() {
                   </View>
 
                   <View style={styles.progressTrack}>
-                    <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+                    <View
+                      style={[
+                        styles.progressFill,
+                        { width: `${progress * 100}%` },
+                      ]}
+                    />
                   </View>
 
                   <View style={styles.bottomRow}>
-                    <Text style={styles.daysLeft}>{item.daysLeft} days left</Text>
-                    <Text style={styles.refillAt}>Refill at {item.refillAt}</Text>
+                    <Text style={styles.daysLeft}>
+                      {item.daysLeft} days left
+                    </Text>
+                    <Text style={styles.refillAt}>
+                      Refill at {item.refillAt}
+                    </Text>
                   </View>
                 </View>
               );
@@ -178,28 +215,29 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: Platform.OS === "ios" ? 150 : 130,
+    height: 130,
   },
   content: {
     flex: 1,
-    paddingTop: Platform.OS === "ios" ? 50 : 30,
+    paddingTop: 0,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
+    minHeight: 56,
     marginBottom: 18,
   },
   backButton: {
-    width: 42,
-    height: 42,
+    width: 48,
+    height: 48,
     borderRadius: SkeuoTheme.radius.pill,
     backgroundColor: SkeuoTheme.colors.cardBackground,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    shadowColor: "#8e9ab0",
+    shadowColor: "#5f807f",
     shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 0.24,
     shadowRadius: 8,
@@ -224,7 +262,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    shadowColor: "#8e9ab0",
+    shadowColor: "#5f807f",
     shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -253,7 +291,7 @@ const styles = StyleSheet.create({
     borderColor: SkeuoTheme.colors.border,
     padding: 24,
     alignItems: "center",
-    shadowColor: "#8e9ab0",
+    shadowColor: "#5f807f",
     shadowOffset: { width: 5, height: 5 },
     shadowOpacity: 0.24,
     shadowRadius: 8,
@@ -278,7 +316,7 @@ const styles = StyleSheet.create({
     borderColor: SkeuoTheme.colors.border,
     padding: 16,
     marginBottom: 12,
-    shadowColor: "#8e9ab0",
+    shadowColor: "#5f807f",
     shadowOffset: { width: 5, height: 5 },
     shadowOpacity: 0.24,
     shadowRadius: 8,
