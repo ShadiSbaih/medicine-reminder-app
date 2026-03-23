@@ -4,7 +4,7 @@
     "slug": "pillora",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/splash_logo.png",
+    "icon": "./assets/images/app_icon.png",
     "scheme": "pillora",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -15,9 +15,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#2db19a",
-        "foregroundImage": "./assets/images/splash_logo.png",
-        "backgroundImage": "./assets/images/splash_logo.png",
-        "monochromeImage": "./assets/images/splash_logo.png"
+        "foregroundImage": "./assets/images/app_icon.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
