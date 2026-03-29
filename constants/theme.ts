@@ -1,113 +1,170 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * Theme Configuration - Pillora Medicine Reminder App
+ * 
+ * Provides theming context with dark mode support
  */
 
-import { Platform } from "react-native";
+import React, { createContext, useContext, ReactNode } from 'react';
+import { useColorScheme as useSystemColorScheme } from 'react-native';
+import {
+  colors,
+  lightColors,
+  darkColors,
+  typography,
+  spacing,
+  radius,
+  shadows,
+  touchTargets,
+  animation,
+  zIndex,
+  opacity,
+} from './tokens';
 
-const tintColorLight = "#1b9f88";
-const tintColorDark = "#d8f2ec";
+export type ColorScheme = 'light' | 'dark' | 'system';
+export type ResolvedColorScheme = 'light' | 'dark';
 
-export const Colors = {
-  light: {
-    text: "#11181C",
-    background: "#fff",
-    tint: tintColorLight,
-    icon: "#687076",
-    tabIconDefault: "#687076",
-    tabIconSelected: tintColorLight,
-  },
-  dark: {
-    text: "#ECEDEE",
-    background: "#151718",
-    tint: tintColorDark,
-    icon: "#9BA1A6",
-    tabIconDefault: "#9BA1A6",
-    tabIconSelected: tintColorDark,
-  },
-};
+export interface ThemeColors {
+  // Backgrounds
+  background: string;
+  backgroundElevated: string;
+  backgroundCard: string;
+  
+  // Text
+  textPrimary: string;
+  textSecondary: string;
+  textMuted: string;
+  
+  // Borders
+  border: string;
+  borderSubtle: string;
+  
+  // Semantic
+  sage: string;
+  sageLight: string;
+  amber: string;
+  amberLight: string;
+  coral: string;
+  coralLight: string;
+  
+  // Accent
+  indigo: string;
+  indigoLight: string;
+  
+  // Static colors (don't change with theme)
+  white: string;
+  black: string;
+  
+  // Original palette (for direct access)
+  palette: typeof colors;
+}
 
-export const Fonts = Platform.select({
-  ios: {
-    sans: "Avenir Next",
-    serif: "Times New Roman",
-    rounded: "Avenir Next",
-    mono: "Courier",
-  },
-  default: {
-    sans: "sans-serif",
-    serif: "serif",
-    rounded: "sans-serif-medium",
-    mono: "monospace",
-  },
-  web: {
-    sans: "'Trebuchet MS', 'Gill Sans', 'Segoe UI', sans-serif",
-    serif: "'Palatino Linotype', 'Book Antiqua', Palatino, serif",
-    rounded: "'Trebuchet MS', 'Avenir Next', sans-serif",
-    mono: "Consolas, Monaco, 'Liberation Mono', monospace",
-  },
-});
+export interface Theme {
+  colors: ThemeColors;
+  typography: typeof typography;
+  spacing: typeof spacing;
+  radius: typeof radius;
+  shadows: typeof shadows;
+  touchTargets: typeof touchTargets;
+  animation: typeof animation;
+  zIndex: typeof zIndex;
+  opacity: typeof opacity;
+  isDark: boolean;
+}
 
-export const SkeuoTheme = {
-  colors: {
-    appBackground: "#d9eeea",
-    pageBackground: "#e9f6f2",
-    cardBackground: "#f3fbf8",
-    cardInset: "#d8ebe5",
-    textPrimary: "#173336",
-    textSecondary: "#45666a",
-    textTertiary: "#76979a",
-    accent: "#1b9f88",
-    accentDark: "#0e6b63",
-    accentSoft: "#d8f2ec",
-    success: "#2f9a62",
-    successSurface: "#e7f7f2",
-    warning: "#d9822b",
-    warningSurface: "#fff3e6",
-    danger: "#cc4f4f",
-    dangerSurface: "#fdeeee",
-    dangerBorder: "#f7c9c9",
-    neutralSurface: "#edf5f3",
-    border: "#bfdad3",
-    headerGradientStart: "#2db19a",
-    headerGradientEnd: "#0f7267",
-    overlayDark: "rgba(0, 0, 0, 0.45)",
-    white: "#ffffff",
-  },
-  radius: {
-    sm: 12,
-    md: 18,
-    lg: 28,
-    pill: 999,
-  },
-  spacing: {
-    xs: 8,
-    sm: 12,
-    md: 18,
-    lg: 24,
-    xl: 32,
-  },
-  shadow: {
-    outer: {
-      shadowColor: "#0e3b5a",
-      shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.18,
-      shadowRadius: 16,
-      elevation: 10,
+function createTheme(isDark: boolean): Theme {
+  const themeColors = isDark ? darkColors : lightColors;
+  
+  return {
+    colors: {
+      ...themeColors,
+      white: colors.white,
+      black: colors.black,
+      palette: colors,
     },
-    outerSoft: {
-      shadowColor: "#1d5478",
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.12,
-      shadowRadius: 12,
-      elevation: 6,
-    },
-    innerGlow: {
-      shadowColor: "#ffffff",
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.7,
-      shadowRadius: 6,
-      elevation: 0,
-    },
-  },
-};
+    typography,
+    spacing,
+    radius,
+    shadows,
+    touchTargets,
+    animation,
+    zIndex,
+    opacity,
+    isDark,
+  };
+}
+
+export const lightTheme = createTheme(false);
+export const darkTheme = createTheme(true);
+
+interface ThemeContextValue {
+  theme: Theme;
+  colorScheme: ResolvedColorScheme;
+  setColorScheme: (scheme: ColorScheme) => void;
+}
+
+const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
+
+interface ThemeProviderProps {
+  children: ReactNode;
+  forcedColorScheme?: ResolvedColorScheme;
+}
+
+export function ThemeProvider({ children, forcedColorScheme }: ThemeProviderProps) {
+  const systemColorScheme = useSystemColorScheme();
+  const [userPreference, setUserPreference] = React.useState<ColorScheme>('system');
+  
+  const resolvedColorScheme: ResolvedColorScheme = React.useMemo(() => {
+    if (forcedColorScheme) return forcedColorScheme;
+    if (userPreference === 'system') {
+      return systemColorScheme === 'dark' ? 'dark' : 'light';
+    }
+    return userPreference;
+  }, [forcedColorScheme, userPreference, systemColorScheme]);
+  
+  const theme = resolvedColorScheme === 'dark' ? darkTheme : lightTheme;
+  
+  const setColorScheme = React.useCallback((scheme: ColorScheme) => {
+    setUserPreference(scheme);
+  }, []);
+  
+  const value: ThemeContextValue = {
+    theme,
+    colorScheme: resolvedColorScheme,
+    setColorScheme,
+  };
+  
+  return (
+    <ThemeContext.Provider value={value}>
+      {children}
+    </ThemeContext.Provider>
+  );
+}
+
+export function useTheme(): Theme {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    // Return light theme as default if used outside provider
+    return lightTheme;
+  }
+  return context.theme;
+}
+
+export function useColorScheme(): [ResolvedColorScheme, (scheme: ColorScheme) => void] {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    return ['light', () => {}];
+  }
+  return [context.colorScheme, context.setColorScheme];
+}
+
+// Convenience hook for getting themed styles
+export function useThemedStyles<T>(
+  createStyles: (theme: Theme) => T
+): T {
+  const theme = useTheme();
+  return React.useMemo(() => createStyles(theme), [theme, createStyles]);
+}
+
+// Export for backward compatibility and direct imports
+export { colors, lightColors, darkColors };
+
