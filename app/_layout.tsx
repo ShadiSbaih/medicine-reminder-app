@@ -5,7 +5,10 @@ import { useEffect } from "react";
 
 export default function Layout() {
   useEffect(() => {
-    runStorageMigrations();
+    // Run migrations asynchronously without blocking app startup
+    runStorageMigrations().catch((error) => {
+      console.error("Failed to run storage migrations:", error);
+    });
   }, []);
 
   return (

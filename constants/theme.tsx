@@ -221,8 +221,8 @@ export const SkeuoTheme = {
     borderSubtle: lightColors.borderSubtle,
 
     // Gradients
-    headerGradientStart: "#d9f1fb",
-    headerGradientEnd: "#bce6f6",
+    headerGradientStart: "#2c7da0",
+    headerGradientEnd: "#1e5f7a",
 
     // Static
     white: colors.white,

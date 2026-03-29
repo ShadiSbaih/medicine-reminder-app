@@ -114,16 +114,16 @@ export default function AuthScreen() {
           ]}
         >
           <View style={styles.iconContainer}>
-            <Image
-              source={require("../../assets/images/splash_logo.png")}
-              style={styles.brandLogo}
-              resizeMode="contain"
+            <Ionicons
+              name="medical"
+              size={56}
+              color={SkeuoTheme.colors.accent}
             />
           </View>
 
-          <Text style={styles.brandName}>PILLORA</Text>
+          <Text style={styles.brandName}>Pillora</Text>
           <Text style={styles.subtitle}>
-            Clinical daily medication workflow
+            Your Medication Companion
           </Text>
         </Animated.View>
 
@@ -138,17 +138,17 @@ export default function AuthScreen() {
         >
           <View style={styles.kickerRow}>
             <Ionicons
-              name="shield-checkmark-outline"
-              size={18}
-              color={SkeuoTheme.colors.accentDark}
+              name="shield-checkmark"
+              size={20}
+              color={SkeuoTheme.colors.accent}
             />
-            <Text style={styles.kicker}>Secure Access</Text>
+            <Text style={styles.kicker}>Secure</Text>
           </View>
           <Text style={styles.welcomeText}>Welcome Back</Text>
           <Text style={styles.instructionText}>
             {hasBiometrics
-              ? "Authenticate with biometrics or device PIN to continue"
-              : "Use your device PIN to continue"}
+              ? "Verify your identity to continue"
+              : "Enter PIN to continue"}
           </Text>
 
           <TouchableOpacity
@@ -164,10 +164,10 @@ export default function AuthScreen() {
             />
             <Text style={styles.buttonText}>
               {isAuthenticating
-                ? "Verifying Identity"
+                ? "Verifying..."
                 : hasBiometrics
-                  ? "Continue Securely"
-                  : "Continue with PIN"}
+                  ? "Authenticate"
+                  : "Enter PIN"}
             </Text>
           </TouchableOpacity>
           {__DEV__ && (
@@ -196,19 +196,11 @@ export default function AuthScreen() {
         <View style={styles.metaRow}>
           <View style={styles.metaChip}>
             <Ionicons
-              name="notifications-outline"
+              name="lock-closed"
               size={14}
               color={SkeuoTheme.colors.textSecondary}
             />
-            <Text style={styles.metaChipText}>Private on-device data</Text>
-          </View>
-          <View style={styles.metaChip}>
-            <Ionicons
-              name="time-outline"
-              size={14}
-              color={SkeuoTheme.colors.textSecondary}
-            />
-            <Text style={styles.metaChipText}>Fast daily check-ins</Text>
+            <Text style={styles.metaChipText}>Private & Secure</Text>
           </View>
         </View>
       </View>
@@ -277,19 +269,18 @@ const styles = StyleSheet.create({
   },
   brandName: {
     marginTop: 4,
-    fontSize: 42,
-    fontWeight: "800",
+    fontSize: 36,
+    fontWeight: "700",
     color: SkeuoTheme.colors.textPrimary,
-    letterSpacing: 2,
+    letterSpacing: 0.5,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: SkeuoTheme.colors.textSecondary,
     marginBottom: 28,
     textAlign: "center",
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
+    fontWeight: "500",
+    letterSpacing: 0.3,
   },
   card: {
     backgroundColor: "rgba(255, 255, 255, 0.92)",
@@ -308,35 +299,34 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   kicker: {
-    fontSize: 12,
-    color: SkeuoTheme.colors.accentDark,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
+    fontSize: 13,
+    color: SkeuoTheme.colors.accent,
+    fontWeight: "600",
+    letterSpacing: 0.3,
   },
   welcomeText: {
-    fontSize: 32,
-    fontWeight: "800",
+    fontSize: 28,
+    fontWeight: "700",
     color: SkeuoTheme.colors.textPrimary,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   instructionText: {
-    fontSize: 15,
+    fontSize: 14,
     color: SkeuoTheme.colors.textSecondary,
     textAlign: "left",
-    marginBottom: 18,
-    lineHeight: 22,
+    marginBottom: 20,
+    lineHeight: 20,
   },
   button: {
-    backgroundColor: SkeuoTheme.colors.accentDark,
-    paddingVertical: 16,
+    backgroundColor: SkeuoTheme.colors.accent,
+    paddingVertical: 14,
     paddingHorizontal: 18,
-    borderRadius: 18,
+    borderRadius: 16,
     width: "100%",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 56,
+    minHeight: 52,
   },
   buttonDisabled: {
     opacity: 0.75,
@@ -346,9 +336,9 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: "white",
-    fontSize: 15,
-    fontWeight: "800",
-    letterSpacing: 0.3,
+    fontSize: 16,
+    fontWeight: "600",
+    letterSpacing: 0.2,
   },
   errorContainer: {
     flexDirection: "row",

@@ -51,6 +51,9 @@ export function getDoseStatus(
 
 export async function runStorageMigrations(): Promise<void> {
   try {
+    // Ensure AsyncStorage is ready
+    await AsyncStorage.getItem("@ready_check");
+
     const versionRaw = await AsyncStorage.getItem(STORAGE_SCHEMA_VERSION_KEY);
     const version = versionRaw ? Number(versionRaw) : 0;
 
@@ -71,6 +74,7 @@ export async function runStorageMigrations(): Promise<void> {
     );
   } catch (error) {
     console.error("Error running storage migrations:", error);
+    // Don't throw - let the app continue with default values
   }
 }
 
