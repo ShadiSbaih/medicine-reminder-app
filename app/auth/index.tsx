@@ -4,13 +4,12 @@ import * as LocalAuthentication from "expo-local-authentication";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  Animated,
-  Dimensions,
-  Image,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Animated,
+    Dimensions,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { SkeuoTheme } from "../../constants/theme";
 
@@ -122,9 +121,7 @@ export default function AuthScreen() {
           </View>
 
           <Text style={styles.brandName}>Pillora</Text>
-          <Text style={styles.subtitle}>
-            Your Medication Companion
-          </Text>
+          <Text style={styles.subtitle}>Your Medication Companion</Text>
         </Animated.View>
 
         <Animated.View
