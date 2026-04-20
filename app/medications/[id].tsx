@@ -8,7 +8,7 @@ import {
 } from "@/stores/medication-store";
 import { useTimelineStore } from "@/stores/timeline-store";
 import { triggerLightHaptic } from "@/utils/haptics";
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/ui/app-icon";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -107,7 +107,7 @@ export default function MedicationDetailsScreen() {
             style={styles.backButton}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons
+            <AppIcon
               name="chevron-back"
               size={28}
               color={SkeuoTheme.colors.accentDark}
@@ -152,7 +152,7 @@ export default function MedicationDetailsScreen() {
 
             <View style={styles.chipsRow}>
               <View style={styles.chip}>
-                <Ionicons
+                <AppIcon
                   name="time-outline"
                   size={14}
                   color={SkeuoTheme.colors.textSecondary}
@@ -160,7 +160,7 @@ export default function MedicationDetailsScreen() {
                 <Text style={styles.chipText}>{medication.frequency}</Text>
               </View>
               <View style={styles.chip}>
-                <Ionicons
+                <AppIcon
                   name={
                     medication.reminderEnabled
                       ? "notifications-outline"
@@ -237,7 +237,7 @@ export default function MedicationDetailsScreen() {
                             : "As needed"}
                     </Text>
                   </View>
-                  <Ionicons
+                  <AppIcon
                     name={
                       item.taken
                         ? "checkmark-circle"

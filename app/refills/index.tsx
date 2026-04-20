@@ -2,7 +2,7 @@ import {
     type MedicationEntity,
     useMedicationStore,
 } from "@/stores/medication-store";
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/ui/app-icon";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -166,7 +166,7 @@ export default function RefillsScreen() {
             style={styles.backButton}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons
+            <AppIcon
               name="chevron-back"
               size={24}
               color={SkeuoTheme.colors.textPrimary}
@@ -181,7 +181,7 @@ export default function RefillsScreen() {
         <View style={styles.dashboardWidget}>
           <View style={styles.widgetHeader}>
             <View style={styles.widgetIconContainer}>
-              <Ionicons
+              <AppIcon
                 name="medical-outline"
                 size={20}
                 color={SkeuoTheme.colors.accent}
@@ -233,7 +233,7 @@ export default function RefillsScreen() {
           {insights.length === 0 ? (
             <View style={styles.emptyCard}>
               <View style={styles.emptyIconBackground}>
-                <Ionicons
+                <AppIcon
                   name="cube-outline"
                   size={40}
                   color={SkeuoTheme.colors.accent}

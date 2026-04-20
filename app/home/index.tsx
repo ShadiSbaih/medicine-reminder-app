@@ -17,7 +17,7 @@ import {
   registerForPushNotificationsAsync,
   updateMedicationReminders,
 } from "@/utils/notifications";
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/ui/app-icon";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Link } from "expo-router";
@@ -361,7 +361,7 @@ export default function HomeScreen() {
                 onPress={() => setShowNotifications(true)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons
+                <AppIcon
                   name="notifications-outline"
                   size={24}
                   color="white"
@@ -485,7 +485,7 @@ export default function HomeScreen() {
                     >
                       <View style={styles.actionContent}>
                         <View style={styles.actionIcon}>
-                          <Ionicons
+                          <AppIcon
                             name={action.icon}
                             size={28}
                             color="white"
@@ -511,7 +511,7 @@ export default function HomeScreen() {
             </View>
             {scheduledDoses.length === 0 ? (
               <View style={styles.emptyState}>
-                <Ionicons
+                <AppIcon
                   name="medical-outline"
                   size={48}
                   color={SkeuoTheme.colors.textTertiary}
@@ -555,7 +555,7 @@ export default function HomeScreen() {
                           { backgroundColor: `${medication.color}15` },
                         ]}
                       >
-                        <Ionicons
+                        <AppIcon
                           name="medical"
                           size={24}
                           color={medication.color}
@@ -571,7 +571,7 @@ export default function HomeScreen() {
                           </Text>
                         </View>
                         <View style={styles.doseTime}>
-                          <Ionicons
+                          <AppIcon
                             name="time-outline"
                             size={16}
                             color={SkeuoTheme.colors.textSecondary}
@@ -641,7 +641,7 @@ export default function HomeScreen() {
 
           <View style={styles.creditWrap}>
             <View style={styles.creditBadge}>
-              <Ionicons
+              <AppIcon
                 name="code-working-outline"
                 size={14}
                 color={SkeuoTheme.colors.accentDark}
@@ -680,7 +680,7 @@ export default function HomeScreen() {
                     style={styles.closeButton}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Ionicons
+                    <AppIcon
                       name="close"
                       size={24}
                       color={SkeuoTheme.colors.textPrimary}
@@ -699,7 +699,7 @@ export default function HomeScreen() {
                   activeOpacity={0.8}
                 >
                   <View style={styles.notificationIcon}>
-                    <Ionicons
+                    <AppIcon
                       name={doseItem.isRead ? "checkmark-done" : "medical"}
                       size={24}
                       color={

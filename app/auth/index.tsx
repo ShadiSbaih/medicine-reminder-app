@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/ui/app-icon";
 import * as Device from "expo-device";
 import { LinearGradient } from "expo-linear-gradient";
 import * as LocalAuthentication from "expo-local-authentication";
@@ -101,7 +101,7 @@ export default function AuthScreen() {
       <View style={styles.content}>
         <Animated.View style={[styles.brandContainer, brandAnimatedStyle]}>
           <View style={styles.iconContainer}>
-            <Ionicons
+            <AppIcon
               name="medical"
               size={56}
               color={SkeuoTheme.colors.accent}
@@ -114,7 +114,7 @@ export default function AuthScreen() {
 
         <Animated.View style={[styles.card, cardAnimatedStyle]}>
           <View style={styles.kickerRow}>
-            <Ionicons
+            <AppIcon
               name="shield-checkmark"
               size={20}
               color={SkeuoTheme.colors.accent}
@@ -133,7 +133,7 @@ export default function AuthScreen() {
             onPress={authenticate}
             disabled={isAuthenticating}
           >
-            <Ionicons
+            <AppIcon
               name={hasBiometrics ? "finger-print-outline" : "keypad-outline"}
               size={24}
               color="white"
@@ -160,7 +160,7 @@ export default function AuthScreen() {
 
           {error && (
             <View style={styles.errorContainer}>
-              <Ionicons
+              <AppIcon
                 name="alert-circle"
                 size={20}
                 color={SkeuoTheme.colors.danger}
@@ -172,7 +172,7 @@ export default function AuthScreen() {
 
         <View style={styles.metaRow}>
           <View style={styles.metaChip}>
-            <Ionicons
+            <AppIcon
               name="lock-closed"
               size={14}
               color={SkeuoTheme.colors.textSecondary}

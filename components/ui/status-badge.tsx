@@ -1,5 +1,5 @@
+import { AppIcon } from "@/components/ui/app-icon";
 import { SkeuoTheme } from "@/constants/theme";
-import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, View } from "react-native";
 
 type StatusType = "taken" | "missed" | "skipped" | "overdue" | "upcoming";
@@ -13,7 +13,7 @@ const STATUS_CONFIG: Record<
   StatusType,
   {
     label: string;
-    icon: keyof typeof Ionicons.glyphMap;
+    icon: string;
     bg: string;
     fg: string;
     border?: string;
@@ -67,7 +67,7 @@ export function StatusBadge({ status, compact = false }: StatusBadgeProps) {
         },
       ]}
     >
-      <Ionicons name={config.icon} size={compact ? 14 : 16} color={config.fg} />
+      <AppIcon name={config.icon} size={compact ? 14 : 16} color={config.fg} />
       <Text
         style={[
           styles.text,

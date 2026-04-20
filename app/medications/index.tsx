@@ -4,7 +4,7 @@ import {
   type MedicationEntity,
   useMedicationStore,
 } from "@/stores/medication-store";
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/ui/app-icon";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -125,7 +125,7 @@ export default function MedicationsScreen() {
             style={styles.backButton}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons
+            <AppIcon
               name="chevron-back"
               size={28}
               color={SkeuoTheme.colors.accentDark}
@@ -160,7 +160,7 @@ export default function MedicationsScreen() {
 
         <View style={styles.controlsContainer}>
           <View style={styles.searchInputWrapper}>
-            <Ionicons
+            <AppIcon
               name="search-outline"
               size={18}
               color={SkeuoTheme.colors.textSecondary}
@@ -174,7 +174,7 @@ export default function MedicationsScreen() {
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery("")}>
-                <Ionicons
+                <AppIcon
                   name="close-circle"
                   size={18}
                   color={SkeuoTheme.colors.textSecondary}
@@ -223,7 +223,7 @@ export default function MedicationsScreen() {
         >
           {medications.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Ionicons
+              <AppIcon
                 name="medical-outline"
                 size={44}
                 color={SkeuoTheme.colors.textTertiary}
@@ -241,7 +241,7 @@ export default function MedicationsScreen() {
             </View>
           ) : filteredMedications.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Ionicons
+              <AppIcon
                 name="search-outline"
                 size={40}
                 color={SkeuoTheme.colors.textTertiary}
@@ -303,7 +303,7 @@ export default function MedicationsScreen() {
                           })
                         }
                       >
-                        <Ionicons
+                        <AppIcon
                           name="create-outline"
                           size={18}
                           color={SkeuoTheme.colors.white}
@@ -313,7 +313,7 @@ export default function MedicationsScreen() {
                         style={styles.deleteButton}
                         onPress={() => handleDelete(medication)}
                       >
-                        <Ionicons
+                        <AppIcon
                           name="trash-outline"
                           size={18}
                           color={SkeuoTheme.colors.danger}
@@ -324,7 +324,7 @@ export default function MedicationsScreen() {
 
                   <View style={styles.metaRow}>
                     <View style={styles.metaChip}>
-                      <Ionicons
+                      <AppIcon
                         name={isActive ? "pulse-outline" : "pause-outline"}
                         size={14}
                         color={SkeuoTheme.colors.textSecondary}
@@ -334,7 +334,7 @@ export default function MedicationsScreen() {
                       </Text>
                     </View>
                     <View style={styles.metaChip}>
-                      <Ionicons
+                      <AppIcon
                         name="time-outline"
                         size={14}
                         color={SkeuoTheme.colors.textSecondary}
@@ -344,7 +344,7 @@ export default function MedicationsScreen() {
                       </Text>
                     </View>
                     <View style={styles.metaChip}>
-                      <Ionicons
+                      <AppIcon
                         name={
                           medication.reminderEnabled
                             ? "notifications-outline"
@@ -396,7 +396,7 @@ export default function MedicationsScreen() {
           onPress={() => router.push("/medications/add")}
           activeOpacity={0.9}
         >
-          <Ionicons name="add" size={24} color={SkeuoTheme.colors.white} />
+          <AppIcon name="add" size={24} color={SkeuoTheme.colors.white} />
         </TouchableOpacity>
       </View>
     </View>

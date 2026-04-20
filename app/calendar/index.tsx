@@ -11,7 +11,7 @@ import { buildDoseTimestamp } from "@/shared/utils/dose-timeline";
 import { useHistoryStore } from "@/stores/history-store";
 import { useTimelineStore } from "@/stores/timeline-store";
 import { triggerLightHaptic } from "@/utils/haptics";
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "@/components/ui/app-icon";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -356,7 +356,7 @@ export default function CalendarScreen() {
             style={styles.backButton}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons
+            <AppIcon
               name="chevron-back"
               size={28}
               color={SkeuoTheme.colors.accentDark}
@@ -382,7 +382,7 @@ export default function CalendarScreen() {
               }
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons
+              <AppIcon
                 name="chevron-back"
                 size={24}
                 color={SkeuoTheme.colors.textPrimary}
@@ -406,7 +406,7 @@ export default function CalendarScreen() {
               }
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons
+              <AppIcon
                 name="chevron-forward"
                 size={24}
                 color={SkeuoTheme.colors.textPrimary}
@@ -466,7 +466,7 @@ export default function CalendarScreen() {
           </View>
           {groupedMedications.length === 0 ? (
             <View style={styles.emptyStateCard}>
-              <Ionicons
+              <AppIcon
                 name="calendar-clear-outline"
                 size={38}
                 color={SkeuoTheme.colors.textTertiary}

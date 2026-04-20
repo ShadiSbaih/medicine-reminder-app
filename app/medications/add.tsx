@@ -1,3 +1,4 @@
+import { AppIcon } from "@/components/ui/app-icon";
 import {
     getDeleteConfirmationAlert,
     getDeleteFailureAlert,
@@ -8,7 +9,6 @@ import {
 } from "@/constants/feedback-copy";
 import { medicationService } from "@/services/medication-service";
 import { useMedicationStore } from "@/stores/medication-store";
-import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -82,9 +82,22 @@ type FormState = {
   refillReminder: boolean;
   currentSupply: string;
   refillAt: string;
+  color: string;
+  baselineTotalSupply: number;
 };
 
 type FormErrors = Record<string, string>;
+
+type PickerState = {
+  showTimePicker: boolean;
+  showDatePicker: boolean;
+  selectedTimeIndex: number;
+};
+
+type ValidationState = {
+  issues: string[];
+  visible: boolean;
+};
 
 function formatTime(date: Date): string {
   const hours = String(date.getHours()).padStart(2, "0");
@@ -110,18 +123,22 @@ export default function AddMedicationScreen() {
     refillReminder: false,
     currentSupply: "",
     refillAt: "",
+    color: "#2DB19A",
+    baselineTotalSupply: 0,
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [selectedTimeIndex, setSelectedTimeIndex] = useState(0);
+  const [pickerState, setPickerState] = useState<PickerState>({
+    showTimePicker: false,
+    showDatePicker: false,
+    selectedTimeIndex: 0,
+  });
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [validationIssues, setValidationIssues] = useState<string[]>([]);
-  const [showValidationModal, setShowValidationModal] = useState(false);
-  const [loadedMedicationColor, setLoadedMedicationColor] = useState("#2DB19A");
-  const [loadedTotalSupply, setLoadedTotalSupply] = useState(0);
+  const [validationState, setValidationState] = useState<ValidationState>({
+    issues: [],
+    visible: false,
+  });
   const addMedication = useMedicationStore((state) => state.addMedication);
   const updateMedicationInStore = useMedicationStore(
     (state) => state.updateMedication,
@@ -141,8 +158,6 @@ export default function AddMedicationScreen() {
         return;
       }
 
-      setLoadedMedicationColor(existing.color || "#2DB19A");
-      setLoadedTotalSupply(existing.totalSupply || existing.currentSupply || 0);
       setForm({
         name: existing.name,
         dosage: existing.dosage,
@@ -161,6 +176,9 @@ export default function AddMedicationScreen() {
           typeof existing.refillAt === "number"
             ? String(existing.refillAt)
             : "",
+        color: existing.color || "#2DB19A",
+        baselineTotalSupply:
+          existing.totalSupply || existing.currentSupply || 0,
       });
     };
 
@@ -237,8 +255,10 @@ export default function AddMedicationScreen() {
     setErrors(allErrors);
 
     const issues = Object.values(stepErrors);
-    setValidationIssues(issues);
-    setShowValidationModal(issues.length > 0);
+    setValidationState({
+      issues,
+      visible: issues.length > 0,
+    });
 
     return issues.length === 0;
   };
@@ -247,8 +267,10 @@ export default function AddMedicationScreen() {
     const allErrors = buildValidationErrors(form);
     setErrors(allErrors);
     const issues = Object.values(allErrors);
-    setValidationIssues(issues);
-    setShowValidationModal(issues.length > 0);
+    setValidationState({
+      issues,
+      visible: issues.length > 0,
+    });
     return issues.length === 0;
   };
 
@@ -285,23 +307,23 @@ export default function AddMedicationScreen() {
       if (isSubmitting) return;
       setIsSubmitting(true);
 
+      const { baselineTotalSupply, color, ...formValues } = form;
+      const currentSupplyValue = formValues.currentSupply
+        ? Number(formValues.currentSupply)
+        : 0;
+
       const medicationData = {
         id:
           (isEditMode && medicationId) ||
           `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`,
-        ...form,
-        currentSupply: form.currentSupply ? Number(form.currentSupply) : 0,
+        ...formValues,
+        currentSupply: currentSupplyValue,
         totalSupply: isEditMode
-          ? Math.max(
-              loadedTotalSupply,
-              form.currentSupply ? Number(form.currentSupply) : 0,
-            )
-          : form.currentSupply
-            ? Number(form.currentSupply)
-            : 0,
-        refillAt: form.refillAt ? Number(form.refillAt) : 0,
-        startDate: form.startDate.toISOString(),
-        color: loadedMedicationColor,
+          ? Math.max(baselineTotalSupply, currentSupplyValue)
+          : currentSupplyValue,
+        refillAt: formValues.refillAt ? Number(formValues.refillAt) : 0,
+        startDate: formValues.startDate.toISOString(),
+        color,
       };
 
       if (isEditMode) {
@@ -404,7 +426,7 @@ export default function AddMedicationScreen() {
 
       <View style={styles.progressHintCard}>
         <View style={styles.progressHintHeader}>
-          <Ionicons
+          <AppIcon
             name="sparkles-outline"
             size={18}
             color={SkeuoTheme.colors.accentDark}
@@ -413,7 +435,7 @@ export default function AddMedicationScreen() {
         </View>
 
         <View style={styles.progressHintRow}>
-          <Ionicons
+          <AppIcon
             name="time-outline"
             size={16}
             color={SkeuoTheme.colors.textSecondary}
@@ -423,7 +445,7 @@ export default function AddMedicationScreen() {
           </Text>
         </View>
         <View style={styles.progressHintRow}>
-          <Ionicons
+          <AppIcon
             name="notifications-outline"
             size={16}
             color={SkeuoTheme.colors.textSecondary}
@@ -459,7 +481,7 @@ export default function AddMedicationScreen() {
                 form.frequency === freq.label && styles.selectedOptionIcon,
               ]}
             >
-              <Ionicons
+              <AppIcon
                 name={freq.icon}
                 size={22}
                 color={
@@ -517,10 +539,12 @@ export default function AddMedicationScreen() {
 
       <TouchableOpacity
         style={styles.dateButton}
-        onPress={() => setShowDatePicker(true)}
+        onPress={() =>
+          setPickerState((prev) => ({ ...prev, showDatePicker: true }))
+        }
       >
         <View style={styles.dateIconContainer}>
-          <Ionicons
+          <AppIcon
             name="calendar"
             size={20}
             color={SkeuoTheme.colors.accentDark}
@@ -529,19 +553,19 @@ export default function AddMedicationScreen() {
         <Text style={styles.dateButtonText}>
           Starts {form.startDate.toLocaleDateString()}
         </Text>
-        <Ionicons
+        <AppIcon
           name="chevron-forward"
           size={20}
           color={SkeuoTheme.colors.textSecondary}
         />
       </TouchableOpacity>
 
-      {showDatePicker && (
+      {pickerState.showDatePicker && (
         <DateTimePicker
           value={form.startDate}
           mode="date"
           onChange={(_, date) => {
-            setShowDatePicker(false);
+            setPickerState((prev) => ({ ...prev, showDatePicker: false }));
             if (date) setForm((prev) => ({ ...prev, startDate: date }));
           }}
         />
@@ -555,7 +579,7 @@ export default function AddMedicationScreen() {
               style={styles.addTimeButton}
               onPress={handleAddTime}
             >
-              <Ionicons name="add" size={16} color={SkeuoTheme.colors.white} />
+              <AppIcon name="add" size={16} color={SkeuoTheme.colors.white} />
               <Text style={styles.addTimeButtonText}>Add Time</Text>
             </TouchableOpacity>
           </View>
@@ -574,19 +598,22 @@ export default function AddMedicationScreen() {
                   <TouchableOpacity
                     style={styles.timeButton}
                     onPress={() => {
-                      setSelectedTimeIndex(index);
-                      setShowTimePicker(true);
+                      setPickerState((prev) => ({
+                        ...prev,
+                        selectedTimeIndex: index,
+                        showTimePicker: true,
+                      }));
                     }}
                   >
                     <View style={styles.timeIconContainer}>
-                      <Ionicons
+                      <AppIcon
                         name="time-outline"
                         size={20}
                         color={SkeuoTheme.colors.accentDark}
                       />
                     </View>
                     <Text style={styles.timeButtonText}>{time}</Text>
-                    <Ionicons
+                    <AppIcon
                       name="chevron-forward"
                       size={20}
                       color={SkeuoTheme.colors.textSecondary}
@@ -601,7 +628,7 @@ export default function AddMedicationScreen() {
                     disabled={form.times.length <= 1}
                     onPress={() => handleRemoveTime(index)}
                   >
-                    <Ionicons
+                    <AppIcon
                       name="trash-outline"
                       size={16}
                       color={SkeuoTheme.colors.danger}
@@ -614,10 +641,10 @@ export default function AddMedicationScreen() {
         </View>
       )}
 
-      {showTimePicker && (
+      {pickerState.showTimePicker && (
         <DateTimePicker
           value={(() => {
-            const source = form.times[selectedTimeIndex] ?? "09:00";
+            const source = form.times[pickerState.selectedTimeIndex] ?? "09:00";
             const [hours, minutes] = source.split(":").map(Number);
             const date = new Date();
             date.setHours(hours || 9, minutes || 0, 0, 0);
@@ -625,13 +652,13 @@ export default function AddMedicationScreen() {
           })()}
           mode="time"
           onChange={(_, date) => {
-            setShowTimePicker(false);
+            setPickerState((prev) => ({ ...prev, showTimePicker: false }));
             if (!date) return;
             const newTime = formatTime(date);
             setForm((prev) => ({
               ...prev,
               times: prev.times.map((t, i) =>
-                i === selectedTimeIndex ? newTime : t,
+                i === pickerState.selectedTimeIndex ? newTime : t,
               ),
             }));
           }}
@@ -648,7 +675,7 @@ export default function AddMedicationScreen() {
         <View style={styles.switchRow}>
           <View style={styles.switchLabelContainer}>
             <View style={styles.iconContainer}>
-              <Ionicons
+              <AppIcon
                 name="notifications"
                 size={20}
                 color={SkeuoTheme.colors.accentDark}
@@ -680,7 +707,7 @@ export default function AddMedicationScreen() {
         <View style={styles.switchRow}>
           <View style={styles.switchLabelContainer}>
             <View style={styles.iconContainer}>
-              <Ionicons
+              <AppIcon
                 name="reload"
                 size={20}
                 color={SkeuoTheme.colors.accentDark}
@@ -784,7 +811,7 @@ export default function AddMedicationScreen() {
             style={styles.backButton}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons
+            <AppIcon
               name="chevron-back"
               size={28}
               color={SkeuoTheme.colors.accentDark}
@@ -913,7 +940,7 @@ export default function AddMedicationScreen() {
               onPress={handleDeleteMedication}
               disabled={isSubmitting}
             >
-              <Ionicons
+              <AppIcon
                 name="trash-outline"
                 size={18}
                 color={SkeuoTheme.colors.danger}
@@ -936,14 +963,16 @@ export default function AddMedicationScreen() {
 
       <Modal
         transparent
-        visible={showValidationModal}
+        visible={validationState.visible}
         animationType="fade"
-        onRequestClose={() => setShowValidationModal(false)}
+        onRequestClose={() =>
+          setValidationState((prev) => ({ ...prev, visible: false }))
+        }
       >
         <View style={styles.validationOverlay}>
           <View style={styles.validationModal}>
             <View style={styles.validationHeader}>
-              <Ionicons
+              <AppIcon
                 name="warning-outline"
                 size={22}
                 color={SkeuoTheme.colors.warning}
@@ -957,9 +986,9 @@ export default function AddMedicationScreen() {
             </Text>
 
             <View style={styles.validationList}>
-              {validationIssues.map((issue) => (
+              {validationState.issues.map((issue) => (
                 <View key={issue} style={styles.validationItem}>
-                  <Ionicons
+                  <AppIcon
                     name="ellipse"
                     size={8}
                     color={SkeuoTheme.colors.textSecondary}
@@ -971,7 +1000,9 @@ export default function AddMedicationScreen() {
 
             <TouchableOpacity
               style={styles.validationButton}
-              onPress={() => setShowValidationModal(false)}
+              onPress={() =>
+                setValidationState((prev) => ({ ...prev, visible: false }))
+              }
             >
               <Text style={styles.validationButtonText}>Got it</Text>
             </TouchableOpacity>

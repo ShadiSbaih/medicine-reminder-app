@@ -1,7 +1,13 @@
+import { AppIcon } from "@/components/ui/app-icon";
 import { SkeuoTheme } from "@/constants/theme";
-import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
-import { Animated, StyleSheet, Text, View } from "react-native";
+import { useEffect } from "react";
+import { StyleSheet, Text, View } from "react-native";
+import Animated, {
+    runOnJS,
+    useAnimatedStyle,
+    useSharedValue,
+    withTiming,
+} from "react-native-reanimated";
 
 type SnackbarType = "success" | "info";
 
@@ -20,46 +26,33 @@ export function FeedbackSnackbar({
   onHide,
   duration = 1800,
 }: FeedbackSnackbarProps) {
-  const [opacity] = useState(() => new Animated.Value(0));
-  const [translateY] = useState(() => new Animated.Value(32));
+  const opacity = useSharedValue(0);
+  const translateY = useSharedValue(32);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
+  }));
 
   useEffect(() => {
     if (!visible) {
       return;
     }
 
-    Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 180,
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 180,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    opacity.value = withTiming(1, { duration: 180 });
+    translateY.value = withTiming(0, { duration: 180 });
 
     const timer = setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(opacity, {
-          toValue: 0,
-          duration: 180,
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateY, {
-          toValue: 20,
-          duration: 180,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        onHide();
+      opacity.value = withTiming(0, { duration: 180 }, (finished) => {
+        if (finished) {
+          runOnJS(onHide)();
+        }
       });
+      translateY.value = withTiming(20, { duration: 180 });
     }, duration);
 
     return () => clearTimeout(timer);
-  }, [visible, duration, onHide, opacity, translateY]);
+  }, [visible, message, duration, onHide, opacity, translateY]);
 
   if (!visible || !message) {
     return null;
@@ -69,13 +62,7 @@ export function FeedbackSnackbar({
 
   return (
     <Animated.View
-      style={[
-        styles.wrapper,
-        {
-          opacity,
-          transform: [{ translateY }],
-        },
-      ]}
+      style={[styles.wrapper, animatedStyle]}
       pointerEvents="none"
     >
       <View
@@ -84,7 +71,7 @@ export function FeedbackSnackbar({
           isSuccess ? styles.snackbarSuccess : styles.snackbarInfo,
         ]}
       >
-        <Ionicons
+        <AppIcon
           name={isSuccess ? "checkmark-circle" : "information-circle"}
           size={18}
           color={
