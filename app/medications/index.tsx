@@ -1,5 +1,9 @@
-import { medicationService } from "@/services/medication-service";
+import { SkeuoTheme } from "@/constants/theme";
 import { isMedicationActiveOnDate } from "@/shared/utils/medication-schedule";
+import {
+  type MedicationEntity,
+  useMedicationStore,
+} from "@/stores/medication-store";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -15,22 +19,17 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { SkeuoTheme } from "../../constants/theme";
-import { Medication } from "../../utils/storage";
 
 type MedicationFilter = "all" | "active" | "low-stock" | "reminders-off";
 
 export default function MedicationsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [medications, setMedications] = useState<Medication[]>([]);
+  const medications = useMedicationStore((state) => state.medications);
+  const loadMedications = useMedicationStore((state) => state.loadMedications);
+  const removeMedication = useMedicationStore((state) => state.removeMedication);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState<MedicationFilter>("all");
-
-  const loadMedications = useCallback(async () => {
-    const data = await medicationService.list();
-    setMedications(data);
-  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -38,7 +37,7 @@ export default function MedicationsScreen() {
     }, [loadMedications]),
   );
 
-  const filteredMedications = useMemo(() => {
+  const filteredMedications = useMemo<MedicationEntity[]>(() => {
     const query = searchQuery.trim().toLowerCase();
 
     return medications.filter((medication) => {
@@ -85,7 +84,7 @@ export default function MedicationsScreen() {
     };
   }, [filteredMedications.length, medications]);
 
-  const handleDelete = (medication: Medication) => {
+  const handleDelete = (medication: MedicationEntity) => {
     Alert.alert(
       "Delete Medication",
       `Delete ${medication.name}? This cannot be undone.`,
@@ -96,8 +95,7 @@ export default function MedicationsScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await medicationService.remove(medication.id);
-              await loadMedications();
+              await removeMedication(medication.id);
             } catch (error) {
               console.error("Error deleting medication:", error);
               Alert.alert("Error", "Failed to delete medication.");

@@ -1,12 +1,19 @@
+import { bootstrapDatabase, dbManager } from "@/database";
+import {
+    doseHistoryRepository,
+    medicationRepository,
+} from "@/database/repositories";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const MEDICATIONS_KEY = "@medications";
-const DOSE_HISTORY_KEY = "@dose_history";
+const LEGACY_MEDICATIONS_KEY = "@medications";
+const LEGACY_DOSE_HISTORY_KEY = "@dose_history";
 const NOTIFICATION_READ_KEY = "@notification_read";
-const STORAGE_SCHEMA_VERSION_KEY = "@storage_schema_version";
-const CURRENT_STORAGE_SCHEMA_VERSION = 1;
 
 type NotificationReadMap = Record<string, string[]>;
+
+type DoseStatus = "taken" | "missed" | "skipped";
+
+let bootstrapPromise: Promise<void> | null = null;
 
 export interface Medication {
   id: string;
@@ -31,13 +38,11 @@ export interface DoseHistory {
   medicationId: string;
   timestamp: string;
   taken: boolean;
-  status?: "taken" | "missed" | "skipped";
+  status?: DoseStatus;
   scheduledTime?: string;
 }
 
-export function getDoseStatus(
-  dose: DoseHistory,
-): "taken" | "missed" | "skipped" {
+export function getDoseStatus(dose: DoseHistory): DoseStatus {
   if (
     dose.status === "taken" ||
     dose.status === "missed" ||
@@ -49,39 +54,34 @@ export function getDoseStatus(
   return dose.taken ? "taken" : "missed";
 }
 
+async function ensureDatabaseReady(): Promise<void> {
+  if (!bootstrapPromise) {
+    bootstrapPromise = bootstrapDatabase().then(() => undefined);
+  }
+
+  await bootstrapPromise;
+}
+
+function extractDoseDate(timestamp: string): string {
+  if (/^\d{4}-\d{2}-\d{2}/.test(timestamp)) {
+    return timestamp.slice(0, 10);
+  }
+
+  return new Date().toISOString().slice(0, 10);
+}
+
 export async function runStorageMigrations(): Promise<void> {
   try {
-    // Ensure AsyncStorage is ready
-    await AsyncStorage.getItem("@ready_check");
-
-    const versionRaw = await AsyncStorage.getItem(STORAGE_SCHEMA_VERSION_KEY);
-    const version = versionRaw ? Number(versionRaw) : 0;
-
-    if (version >= CURRENT_STORAGE_SCHEMA_VERSION) {
-      return;
-    }
-
-    const doseHistory = await getDoseHistory();
-    const normalized = doseHistory.map((dose) => ({
-      ...dose,
-      status: getDoseStatus(dose),
-    }));
-
-    await AsyncStorage.setItem(DOSE_HISTORY_KEY, JSON.stringify(normalized));
-    await AsyncStorage.setItem(
-      STORAGE_SCHEMA_VERSION_KEY,
-      String(CURRENT_STORAGE_SCHEMA_VERSION),
-    );
+    await ensureDatabaseReady();
   } catch (error) {
     console.error("Error running storage migrations:", error);
-    // Don't throw - let the app continue with default values
   }
 }
 
 export async function getMedications(): Promise<Medication[]> {
   try {
-    const data = await AsyncStorage.getItem(MEDICATIONS_KEY);
-    return data ? JSON.parse(data) : [];
+    await ensureDatabaseReady();
+    return medicationRepository.findAll();
   } catch (error) {
     console.error("Error getting medications:", error);
     return [];
@@ -90,9 +90,8 @@ export async function getMedications(): Promise<Medication[]> {
 
 export async function addMedication(medication: Medication): Promise<void> {
   try {
-    const medications = await getMedications();
-    medications.push(medication);
-    await AsyncStorage.setItem(MEDICATIONS_KEY, JSON.stringify(medications));
+    await ensureDatabaseReady();
+    await medicationRepository.create(medication);
   } catch (error) {
     console.error("Error adding medication:", error);
     throw error;
@@ -103,14 +102,8 @@ export async function updateMedication(
   updatedMedication: Medication,
 ): Promise<void> {
   try {
-    const medications = await getMedications();
-    const index = medications.findIndex(
-      (med) => med.id === updatedMedication.id,
-    );
-    if (index !== -1) {
-      medications[index] = updatedMedication;
-      await AsyncStorage.setItem(MEDICATIONS_KEY, JSON.stringify(medications));
-    }
+    await ensureDatabaseReady();
+    await medicationRepository.update(updatedMedication);
   } catch (error) {
     console.error("Error updating medication:", error);
     throw error;
@@ -119,12 +112,8 @@ export async function updateMedication(
 
 export async function deleteMedication(id: string): Promise<void> {
   try {
-    const medications = await getMedications();
-    const updatedMedications = medications.filter((med) => med.id !== id);
-    await AsyncStorage.setItem(
-      MEDICATIONS_KEY,
-      JSON.stringify(updatedMedications),
-    );
+    await ensureDatabaseReady();
+    await medicationRepository.softDelete(id);
   } catch (error) {
     console.error("Error deleting medication:", error);
     throw error;
@@ -133,13 +122,8 @@ export async function deleteMedication(id: string): Promise<void> {
 
 export async function getDoseHistory(): Promise<DoseHistory[]> {
   try {
-    const data = await AsyncStorage.getItem(DOSE_HISTORY_KEY);
-    const parsed: DoseHistory[] = data ? JSON.parse(data) : [];
-
-    return parsed.map((dose) => ({
-      ...dose,
-      status: getDoseStatus(dose),
-    }));
+    await ensureDatabaseReady();
+    return doseHistoryRepository.listAll();
   } catch (error) {
     console.error("Error getting dose history:", error);
     return [];
@@ -148,11 +132,8 @@ export async function getDoseHistory(): Promise<DoseHistory[]> {
 
 export async function getTodaysDoses(): Promise<DoseHistory[]> {
   try {
-    const history = await getDoseHistory();
-    const today = new Date().toDateString();
-    return history.filter(
-      (dose) => new Date(dose.timestamp).toDateString() === today,
-    );
+    await ensureDatabaseReady();
+    return doseHistoryRepository.listToday();
   } catch (error) {
     console.error("Error getting today's doses:", error);
     return [];
@@ -164,76 +145,51 @@ export async function recordDose(
   taken: boolean,
   timestamp: string,
   scheduledTime?: string,
-  status?: "taken" | "missed" | "skipped",
+  status?: DoseStatus,
 ): Promise<void> {
   try {
-    const history = await getDoseHistory();
-    let shouldDecrementSupply = false;
+    await ensureDatabaseReady();
+    const doseDate = extractDoseDate(timestamp);
 
-    // For scheduled doses, keep only one record per medication + time per day.
-    if (scheduledTime) {
-      const targetDate = new Date(timestamp).toDateString();
-      const existingIndex = history.findIndex(
-        (dose) =>
-          dose.medicationId === medicationId &&
-          dose.scheduledTime === scheduledTime &&
-          new Date(dose.timestamp).toDateString() === targetDate,
-      );
+    await dbManager.withTransaction(async () => {
+      const existingScheduledDose = scheduledTime
+        ? await doseHistoryRepository.findByMedicationDateTime(
+            medicationId,
+            doseDate,
+            scheduledTime,
+          )
+        : null;
 
-      if (existingIndex >= 0) {
-        const previous = history[existingIndex];
-        const resolvedStatus =
-          status ??
-          (taken
-            ? "taken"
-            : previous.status === "skipped"
-              ? "skipped"
-              : "missed");
-        history[existingIndex] = {
-          ...previous,
-          timestamp,
-          taken,
-          status: resolvedStatus,
-        };
-        shouldDecrementSupply = taken && !previous.taken;
-      } else {
-        const resolvedStatus = status ?? (taken ? "taken" : "missed");
-        const newDose: DoseHistory = {
-          id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`,
-          medicationId,
-          timestamp,
-          taken,
-          status: resolvedStatus,
-          scheduledTime,
-        };
-        history.push(newDose);
-        shouldDecrementSupply = taken;
-      }
-    } else {
-      const resolvedStatus = status ?? (taken ? "taken" : "missed");
-      const newDose: DoseHistory = {
-        id: `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`,
+      const resolvedStatus: DoseStatus =
+        status ??
+        (taken
+          ? "taken"
+          : existingScheduledDose?.status === "skipped"
+            ? "skipped"
+            : "missed");
+
+      await doseHistoryRepository.logDose({
         medicationId,
-        timestamp,
         taken,
-        status: resolvedStatus,
+        timestamp,
         scheduledTime,
-      };
-      history.push(newDose);
-      shouldDecrementSupply = taken;
-    }
+        status: resolvedStatus,
+      });
 
-    await AsyncStorage.setItem(DOSE_HISTORY_KEY, JSON.stringify(history));
+      const shouldDecrementSupply =
+        taken && (scheduledTime ? !existingScheduledDose?.taken : true);
 
-    // Update medication supply if taken
-    if (shouldDecrementSupply) {
-      const medications = await getMedications();
-      const medication = medications.find((med) => med.id === medicationId);
-      if (medication && medication.currentSupply > 0) {
-        medication.currentSupply -= 1;
-        await updateMedication(medication);
+      if (!shouldDecrementSupply) {
+        return;
       }
-    }
+
+      const medication = await medicationRepository.findById(medicationId);
+      if (!medication || medication.currentSupply <= 0) {
+        return;
+      }
+
+      await medicationRepository.decrementSupply(medicationId, 1);
+    });
   } catch (error) {
     console.error("Error recording dose:", error);
     throw error;
@@ -242,10 +198,19 @@ export async function recordDose(
 
 export async function clearAllData(): Promise<void> {
   try {
-    await AsyncStorage.multiRemove([
-      MEDICATIONS_KEY,
-      DOSE_HISTORY_KEY,
-      NOTIFICATION_READ_KEY,
+    await ensureDatabaseReady();
+    const db = dbManager.getSQLite();
+
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(`DELETE FROM dose_history`);
+      await db.runAsync(`DELETE FROM medications`);
+      await db.runAsync(`DELETE FROM notification_events`);
+    });
+
+    await Promise.all([
+      AsyncStorage.removeItem(LEGACY_MEDICATIONS_KEY),
+      AsyncStorage.removeItem(LEGACY_DOSE_HISTORY_KEY),
+      AsyncStorage.removeItem(NOTIFICATION_READ_KEY),
     ]);
   } catch (error) {
     console.error("Error clearing data:", error);
@@ -256,7 +221,7 @@ export async function clearAllData(): Promise<void> {
 async function getNotificationReadMap(): Promise<NotificationReadMap> {
   try {
     const data = await AsyncStorage.getItem(NOTIFICATION_READ_KEY);
-    return data ? JSON.parse(data) : {};
+    return data ? (JSON.parse(data) as NotificationReadMap) : {};
   } catch (error) {
     console.error("Error getting notification read map:", error);
     return {};

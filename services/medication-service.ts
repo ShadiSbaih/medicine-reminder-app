@@ -1,11 +1,7 @@
+import { bootstrapDatabase } from "@/database";
+import { medicationRepository } from "@/database/repositories";
 import { notificationOrchestrator } from "@/services/notification-orchestrator";
-import {
-    addMedication,
-    deleteMedication,
-    getMedications,
-    Medication,
-    updateMedication,
-} from "@/utils/storage";
+import type { Medication } from "@/utils/storage";
 
 const MEDICATION_COLORS = [
   "#2DB19A",
@@ -20,46 +16,53 @@ function createMedicationId(): string {
 }
 
 function pickMedicationColor(): string {
-  return MEDICATION_COLORS[
-    Math.floor(Math.random() * MEDICATION_COLORS.length)
-  ];
+  const randomColor =
+    MEDICATION_COLORS[Math.floor(Math.random() * MEDICATION_COLORS.length)];
+  return randomColor ?? MEDICATION_COLORS[0] ?? "#2DB19A";
 }
 
 class MedicationService {
+  private async ensureReady(): Promise<void> {
+    await bootstrapDatabase();
+  }
+
   async list(): Promise<Medication[]> {
-    return getMedications();
+    await this.ensureReady();
+    return medicationRepository.findAll();
   }
 
   async getById(medicationId: string): Promise<Medication | null> {
-    const medications = await getMedications();
-    return (
-      medications.find((medication) => medication.id === medicationId) ?? null
-    );
+    await this.ensureReady();
+    return medicationRepository.findById(medicationId);
   }
 
   async create(
     input: Omit<Medication, "id" | "color"> & { id?: string; color?: string },
   ): Promise<Medication> {
+    await this.ensureReady();
+
     const medication: Medication = {
       ...input,
       id: input.id ?? createMedicationId(),
       color: input.color ?? pickMedicationColor(),
     };
 
-    await addMedication(medication);
+    await medicationRepository.create(medication);
     await notificationOrchestrator.onMedicationCreated(medication);
     return medication;
   }
 
   async update(medication: Medication): Promise<Medication> {
-    await updateMedication(medication);
+    await this.ensureReady();
+    await medicationRepository.update(medication);
     await notificationOrchestrator.onMedicationUpdated(medication);
     return medication;
   }
 
   async remove(medicationId: string): Promise<void> {
+    await this.ensureReady();
     await notificationOrchestrator.onMedicationDeleted(medicationId);
-    await deleteMedication(medicationId);
+    await medicationRepository.softDelete(medicationId);
   }
 }
 

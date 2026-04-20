@@ -1,7 +1,12 @@
 import { FeedbackSnackbar } from "@/components/ui/feedback-snackbar";
 import { getEditOpenMessage } from "@/constants/feedback-copy";
-import { medicationService, todayTimelineService } from "@/services";
+import { todayTimelineService } from "@/services";
 import { TimelineDose } from "@/shared/utils/dose-timeline";
+import {
+    type MedicationEntity,
+    useMedicationStore,
+} from "@/stores/medication-store";
+import { useTimelineStore } from "@/stores/timeline-store";
 import { triggerLightHaptic } from "@/utils/haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -18,14 +23,15 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SkeuoTheme } from "../../constants/theme";
-import { Medication } from "../../utils/storage";
 
 export default function MedicationDetailsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
+  const loadMedications = useMedicationStore((state) => state.loadMedications);
+  const loadTodayTimeline = useTimelineStore((state) => state.loadToday);
 
-  const [medication, setMedication] = useState<Medication | null>(null);
+  const [medication, setMedication] = useState<MedicationEntity | null>(null);
   const [todayItems, setTodayItems] = useState<TimelineDose[]>([]);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
@@ -38,7 +44,12 @@ export default function MedicationDetailsScreen() {
   const loadData = useCallback(async () => {
     if (!id) return;
 
-    const med = await medicationService.getById(id);
+    await Promise.all([loadMedications(), loadTodayTimeline()]);
+
+    const med = useMedicationStore
+      .getState()
+      .medications.find((item) => item.id === id);
+
     if (!med) {
       Alert.alert("Not found", "Medication was not found.", [
         { text: "OK", onPress: () => router.back() },
@@ -48,12 +59,11 @@ export default function MedicationDetailsScreen() {
 
     setMedication(med);
 
-    const todayTimeline = await todayTimelineService.getForToday();
     const group = todayTimelineService
-      .groupByMedication(todayTimeline.items)
+      .groupByMedication(useTimelineStore.getState().items)
       .find((item) => item.medication.id === med.id);
     setTodayItems(group?.items ?? []);
-  }, [id, router]);
+  }, [id, loadMedications, loadTodayTimeline, router]);
 
   useFocusEffect(
     useCallback(() => {

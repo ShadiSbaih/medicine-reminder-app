@@ -1,8 +1,12 @@
+import {
+    type MedicationEntity,
+    useMedicationStore,
+} from "@/stores/medication-store";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo } from "react";
 import {
     ScrollView,
     StyleSheet,
@@ -12,9 +16,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SkeuoTheme } from "../../constants/theme";
-import { getMedications, Medication } from "../../utils/storage";
 
-type RefillInsight = Medication & {
+type RefillInsight = MedicationEntity & {
   dosesPerDay: number;
   daysLeft: number;
   refillUrgency: "critical" | "soon" | "healthy";
@@ -98,11 +101,11 @@ function RefillCard({ item }: { item: RefillInsight }) {
 export default function RefillsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [insights, setInsights] = useState<RefillInsight[]>([]);
+  const medications = useMedicationStore((state) => state.medications);
+  const loadMedications = useMedicationStore((state) => state.loadMedications);
 
-  const loadRefills = useCallback(async () => {
-    const medications = await getMedications();
-    const refillItems = medications
+  const insights = useMemo<RefillInsight[]>(() => {
+    return medications
       .filter(
         (medication) => medication.refillReminder || medication.totalSupply > 0,
       )
@@ -128,14 +131,14 @@ export default function RefillsScreen() {
         };
       })
       .sort((a, b) => a.daysLeft - b.daysLeft);
-
-    setInsights(refillItems);
-  }, []);
+  }, [medications]);
 
   useFocusEffect(
     useCallback(() => {
-      loadRefills();
-    }, [loadRefills]),
+      loadMedications().catch((error) => {
+        console.error("Error loading refill insights:", error);
+      });
+    }, [loadMedications]),
   );
 
   const criticalCount = insights.filter(
@@ -276,7 +279,7 @@ const styles = StyleSheet.create({
   backButton: {
     width: 44,
     height: 44,
-    borderRadius: SkeuoTheme.radius.pill,
+    borderRadius: SkeuoTheme.radius.full,
     backgroundColor: SkeuoTheme.colors.cardBackground,
     alignItems: "center",
     justifyContent: "center",
@@ -417,7 +420,7 @@ const styles = StyleSheet.create({
   urgencyBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: SkeuoTheme.radius.pill,
+    borderRadius: SkeuoTheme.radius.full,
     borderWidth: 1,
   },
   urgencyText: {

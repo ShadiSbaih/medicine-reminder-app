@@ -59,15 +59,18 @@ export async function scheduleMedicationReminder(
 
     let latestIdentifier: string | undefined;
     for (const time of medication.times) {
-      const [hours, minutes] = time.split(":").map(Number);
-      if (
-        !Number.isInteger(hours) ||
-        !Number.isInteger(minutes) ||
-        hours < 0 ||
-        hours > 23 ||
-        minutes < 0 ||
-        minutes > 59
-      ) {
+      const [hourText = "", minuteText = ""] = time.split(":");
+      const parsedHours = Number(hourText);
+      const parsedMinutes = Number(minuteText);
+
+      if (!Number.isInteger(parsedHours) || !Number.isInteger(parsedMinutes)) {
+        continue;
+      }
+
+      const hours = parsedHours;
+      const minutes = parsedMinutes;
+
+      if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
         continue;
       }
 
@@ -113,6 +116,8 @@ export async function scheduleRefillReminder(
 
       return identifier;
     }
+
+    return undefined;
   } catch (error) {
     console.error("Error scheduling refill reminder:", error);
     return undefined;

@@ -7,6 +7,7 @@ import {
     getSaveSuccessAlert,
 } from "@/constants/feedback-copy";
 import { medicationService } from "@/services/medication-service";
+import { useMedicationStore } from "@/stores/medication-store";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
@@ -14,7 +15,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
     Alert,
-    Dimensions,
     Modal,
     ScrollView,
     StyleSheet,
@@ -26,8 +26,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SkeuoTheme } from "../../constants/theme";
-
-const { width } = Dimensions.get("window");
 
 const FREQUENCIES = [
   {
@@ -117,8 +115,6 @@ export default function AddMedicationScreen() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [selectedFrequency, setSelectedFrequency] = useState("");
-  const [selectedDuration, setSelectedDuration] = useState("");
   const [selectedTimeIndex, setSelectedTimeIndex] = useState(0);
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -126,6 +122,11 @@ export default function AddMedicationScreen() {
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [loadedMedicationColor, setLoadedMedicationColor] = useState("#2DB19A");
   const [loadedTotalSupply, setLoadedTotalSupply] = useState(0);
+  const addMedication = useMedicationStore((state) => state.addMedication);
+  const updateMedicationInStore = useMedicationStore(
+    (state) => state.updateMedication,
+  );
+  const removeMedication = useMedicationStore((state) => state.removeMedication);
 
   useEffect(() => {
     if (!isEditMode || !medicationId) return;
@@ -161,8 +162,6 @@ export default function AddMedicationScreen() {
             ? String(existing.refillAt)
             : "",
       });
-      setSelectedFrequency(existing.frequency || "");
-      setSelectedDuration(existing.duration || "");
     };
 
     loadMedicationForEdit();
@@ -254,7 +253,6 @@ export default function AddMedicationScreen() {
   };
 
   const handleFrequencySelect = (freq: string) => {
-    setSelectedFrequency(freq);
     const selectedFreq = FREQUENCIES.find((f) => f.label === freq);
     setForm((prev) => ({
       ...prev,
@@ -264,7 +262,6 @@ export default function AddMedicationScreen() {
   };
 
   const handleDurationSelect = (dur: string) => {
-    setSelectedDuration(dur);
     setForm((prev) => ({ ...prev, duration: dur }));
   };
 
@@ -308,14 +305,16 @@ export default function AddMedicationScreen() {
       };
 
       if (isEditMode) {
-        await medicationService.update(medicationData);
+        await updateMedicationInStore(medicationData);
       } else {
-        await medicationService.create({
+        await addMedication({
           ...medicationData,
           id: undefined,
           color: undefined,
         });
       }
+
+      setIsSubmitting(false);
 
       const success = getSaveSuccessAlert(isEditMode);
       Alert.alert(
@@ -332,7 +331,6 @@ export default function AddMedicationScreen() {
       Alert.alert(failure.title, failure.message, [{ text: "OK" }], {
         cancelable: false,
       });
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -348,7 +346,7 @@ export default function AddMedicationScreen() {
         style: "destructive",
         onPress: async () => {
           try {
-            await medicationService.remove(medicationId);
+            await removeMedication(medicationId);
             const success = getDeleteSuccessAlert();
             Alert.alert(success.title, success.message, [
               { text: "OK", onPress: () => router.back() },
@@ -451,21 +449,21 @@ export default function AddMedicationScreen() {
             key={freq.id}
             style={[
               styles.optionCard,
-              selectedFrequency === freq.label && styles.selectedOptionCard,
+              form.frequency === freq.label && styles.selectedOptionCard,
             ]}
             onPress={() => handleFrequencySelect(freq.label)}
           >
             <View
               style={[
                 styles.optionIcon,
-                selectedFrequency === freq.label && styles.selectedOptionIcon,
+                form.frequency === freq.label && styles.selectedOptionIcon,
               ]}
             >
               <Ionicons
                 name={freq.icon}
                 size={22}
                 color={
-                  selectedFrequency === freq.label
+                  form.frequency === freq.label
                     ? SkeuoTheme.colors.white
                     : SkeuoTheme.colors.textSecondary
                 }
@@ -474,7 +472,7 @@ export default function AddMedicationScreen() {
             <Text
               style={[
                 styles.optionLabel,
-                selectedFrequency === freq.label && styles.selectedOptionLabel,
+                form.frequency === freq.label && styles.selectedOptionLabel,
               ]}
             >
               {freq.label}
@@ -493,14 +491,14 @@ export default function AddMedicationScreen() {
             key={dur.id}
             style={[
               styles.optionCard,
-              selectedDuration === dur.label && styles.selectedOptionCard,
+              form.duration === dur.label && styles.selectedOptionCard,
             ]}
             onPress={() => handleDurationSelect(dur.label)}
           >
             <Text
               style={[
                 styles.durationNumber,
-                selectedDuration === dur.label && styles.selectedDurationNumber,
+                form.duration === dur.label && styles.selectedDurationNumber,
               ]}
             >
               {dur.value > 0 ? dur.value : "∞"}
@@ -508,7 +506,7 @@ export default function AddMedicationScreen() {
             <Text
               style={[
                 styles.optionLabel,
-                selectedDuration === dur.label && styles.selectedOptionLabel,
+                form.duration === dur.label && styles.selectedOptionLabel,
               ]}
             >
               {dur.label}
@@ -564,46 +562,55 @@ export default function AddMedicationScreen() {
 
           {errors.times && <Text style={styles.errorText}>{errors.times}</Text>}
 
-          {form.times.map((time, index) => (
-            <View key={`${time}-${index}`} style={styles.timeRow}>
-              <TouchableOpacity
-                style={styles.timeButton}
-                onPress={() => {
-                  setSelectedTimeIndex(index);
-                  setShowTimePicker(true);
-                }}
-              >
-                <View style={styles.timeIconContainer}>
-                  <Ionicons
-                    name="time-outline"
-                    size={20}
-                    color={SkeuoTheme.colors.accentDark}
-                  />
-                </View>
-                <Text style={styles.timeButtonText}>{time}</Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={20}
-                  color={SkeuoTheme.colors.textSecondary}
-                />
-              </TouchableOpacity>
+          {(() => {
+            const timeOccurrences = new Map<string, number>();
+            return form.times.map((time, index) => {
+              const occurrence = timeOccurrences.get(time) ?? 0;
+              timeOccurrences.set(time, occurrence + 1);
+              const timeKey = `${time}-${occurrence}`;
 
-              <TouchableOpacity
-                style={[
-                  styles.removeTimeButton,
-                  form.times.length <= 1 && styles.removeTimeButtonDisabled,
-                ]}
-                disabled={form.times.length <= 1}
-                onPress={() => handleRemoveTime(index)}
-              >
-                <Ionicons
-                  name="trash-outline"
-                  size={16}
-                  color={SkeuoTheme.colors.danger}
-                />
-              </TouchableOpacity>
-            </View>
-          ))}
+              return (
+                <View key={timeKey} style={styles.timeRow}>
+                  <TouchableOpacity
+                    style={styles.timeButton}
+                    onPress={() => {
+                      setSelectedTimeIndex(index);
+                      setShowTimePicker(true);
+                    }}
+                  >
+                    <View style={styles.timeIconContainer}>
+                      <Ionicons
+                        name="time-outline"
+                        size={20}
+                        color={SkeuoTheme.colors.accentDark}
+                      />
+                    </View>
+                    <Text style={styles.timeButtonText}>{time}</Text>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={SkeuoTheme.colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.removeTimeButton,
+                      form.times.length <= 1 && styles.removeTimeButtonDisabled,
+                    ]}
+                    disabled={form.times.length <= 1}
+                    onPress={() => handleRemoveTime(index)}
+                  >
+                    <Ionicons
+                      name="trash-outline"
+                      size={16}
+                      color={SkeuoTheme.colors.danger}
+                    />
+                  </TouchableOpacity>
+                </View>
+              );
+            });
+          })()}
         </View>
       )}
 
@@ -950,8 +957,8 @@ export default function AddMedicationScreen() {
             </Text>
 
             <View style={styles.validationList}>
-              {validationIssues.map((issue, index) => (
-                <View key={`${issue}-${index}`} style={styles.validationItem}>
+              {validationIssues.map((issue) => (
+                <View key={issue} style={styles.validationItem}>
                   <Ionicons
                     name="ellipse"
                     size={8}
@@ -1122,7 +1129,8 @@ const styles = StyleSheet.create({
     marginHorizontal: -5,
   },
   optionCard: {
-    width: (width - 60) / 2,
+    width: "48%",
+    maxWidth: "48%",
     backgroundColor: SkeuoTheme.colors.cardBackground,
     borderRadius: 18,
     padding: 16,
@@ -1471,7 +1479,7 @@ const styles = StyleSheet.create({
   },
   validationOverlay: {
     flex: 1,
-    backgroundColor: SkeuoTheme.colors.overlayDark,
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
     justifyContent: "center",
     paddingHorizontal: 24,
   },

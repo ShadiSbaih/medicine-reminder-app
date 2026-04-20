@@ -4,6 +4,10 @@ import {
     getClearAllFailureAlert,
     getClearAllSuccessAlert,
 } from "@/constants/feedback-copy";
+import {
+    type EnrichedDoseHistory,
+    useHistoryStore,
+} from "@/stores/history-store";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -21,50 +25,41 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SkeuoTheme } from "../../constants/theme";
-import {
-    DoseHistory,
-    Medication,
-    clearAllData,
-    getDoseHistory,
-    getDoseStatus,
-    getMedications,
-} from "../../utils/storage";
 
-type EnrichedDoseHistory = DoseHistory & { medication?: Medication };
 type TimeFilter = "all" | "today" | "7d" | "30d";
 type StatusFilter = "all" | "taken" | "missed" | "skipped";
 
 export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [history, setHistory] = useState<EnrichedDoseHistory[]>([]);
+  const history = useHistoryStore((state) => state.records);
+  const loadHistory = useHistoryStore((state) => state.loadHistory);
+  const clearHistory = useHistoryStore((state) => state.clearHistory);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<StatusFilter>("all");
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const loadHistory = useCallback(async () => {
-    try {
-      const [doseHistory, medications] = await Promise.all([
-        getDoseHistory(),
-        getMedications(),
-      ]);
+  const resolveDoseStatus = useCallback(
+    (dose: Pick<EnrichedDoseHistory, "status" | "taken">) => {
+      if (
+        dose.status === "taken" ||
+        dose.status === "missed" ||
+        dose.status === "skipped"
+      ) {
+        return dose.status;
+      }
 
-      // Combine history with medication details
-      const enrichedHistory = doseHistory.map((dose) => ({
-        ...dose,
-        medication: medications.find((med) => med.id === dose.medicationId),
-      }));
-
-      setHistory(enrichedHistory);
-    } catch (error) {
-      console.error("Error loading history:", error);
-    }
-  }, []);
+      return dose.taken ? "taken" : "missed";
+    },
+    [],
+  );
 
   useFocusEffect(
     useCallback(() => {
-      loadHistory();
+      loadHistory().catch((error) => {
+        console.error("Error loading history:", error);
+      });
     }, [loadHistory]),
   );
 
@@ -109,10 +104,10 @@ export default function HistoryScreen() {
       if (!isInTimeWindow) return false;
 
       if (selectedFilter === "all") return true;
-      if (selectedFilter === "taken") return getDoseStatus(dose) === "taken";
-      if (selectedFilter === "missed") return getDoseStatus(dose) === "missed";
+      if (selectedFilter === "taken") return resolveDoseStatus(dose) === "taken";
+      if (selectedFilter === "missed") return resolveDoseStatus(dose) === "missed";
       if (selectedFilter === "skipped") {
-        return getDoseStatus(dose) === "skipped";
+        return resolveDoseStatus(dose) === "skipped";
       }
       return true;
     })
@@ -133,22 +128,23 @@ export default function HistoryScreen() {
   const groupedHistory = groupHistoryByDate(filteredHistory);
   const totalCount = filteredHistory.length;
   const takenCount = filteredHistory.filter(
-    (dose) => getDoseStatus(dose) === "taken",
+    (dose) => resolveDoseStatus(dose) === "taken",
   ).length;
   const missedCount = filteredHistory.filter(
-    (dose) => getDoseStatus(dose) === "missed",
+    (dose) => resolveDoseStatus(dose) === "missed",
   ).length;
   const skippedCount = filteredHistory.filter(
-    (dose) => getDoseStatus(dose) === "skipped",
+    (dose) => resolveDoseStatus(dose) === "skipped",
   ).length;
 
   const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
     try {
-      setRefreshing(true);
       await loadHistory();
-    } finally {
-      setRefreshing(false);
+    } catch (error) {
+      console.error("Error refreshing history:", error);
     }
+    setRefreshing(false);
   }, [loadHistory]);
 
   const handleClearAllData = () => {
@@ -163,8 +159,7 @@ export default function HistoryScreen() {
         style: "destructive",
         onPress: async () => {
           try {
-            await clearAllData();
-            await loadHistory();
+            await clearHistory();
             const success = getClearAllSuccessAlert();
             Alert.alert(success.title, success.message);
           } catch (error) {
@@ -465,13 +460,13 @@ export default function HistoryScreen() {
                     )}
                   </View>
                   <View style={styles.statusContainer}>
-                    {getDoseStatus(dose) === "taken" && (
+                    {resolveDoseStatus(dose) === "taken" && (
                       <StatusBadge status="taken" />
                     )}
-                    {getDoseStatus(dose) === "missed" && (
+                    {resolveDoseStatus(dose) === "missed" && (
                       <StatusBadge status="missed" />
                     )}
-                    {getDoseStatus(dose) === "skipped" && (
+                    {resolveDoseStatus(dose) === "skipped" && (
                       <StatusBadge status="skipped" />
                     )}
                   </View>

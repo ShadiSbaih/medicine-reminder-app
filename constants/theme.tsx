@@ -171,6 +171,33 @@ export function useThemedStyles<T>(createStyles: (theme: Theme) => T): T {
 // Export for backward compatibility and direct imports
 export { colors, darkColors, lightColors };
 
+// Legacy Expo-style Colors map used by existing themed helpers/components.
+export const Colors = {
+  light: {
+    text: lightColors.textPrimary,
+    background: lightColors.background,
+    tint: colors.indigo,
+    icon: lightColors.textSecondary,
+    tabIconDefault: lightColors.textMuted,
+    tabIconSelected: colors.indigo,
+  },
+  dark: {
+    text: darkColors.textPrimary,
+    background: darkColors.background,
+    tint: darkColors.indigo,
+    icon: darkColors.textSecondary,
+    tabIconDefault: darkColors.textMuted,
+    tabIconSelected: darkColors.indigo,
+  },
+} as const;
+
+// Legacy font map expected by older text components.
+export const Fonts = {
+  sans: typography.fonts.sans,
+  rounded: typography.fonts.sans,
+  mono: typography.fonts.mono,
+} as const;
+
 // Legacy SkeuoTheme export for backward compatibility
 // This allows components to use SkeuoTheme.colors.x and SkeuoTheme.shadow.x
 export const SkeuoTheme = {

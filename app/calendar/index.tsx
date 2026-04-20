@@ -1,44 +1,50 @@
 import { FeedbackSnackbar } from "@/components/ui/feedback-snackbar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
-  getDoseFailureAlert,
-  getDoseSuccessMessage,
-  getSkipConfirmationCopy,
+    getDoseFailureAlert,
+    getDoseSuccessMessage,
+    getSkipConfirmationCopy,
 } from "@/constants/feedback-copy";
 import { doseService } from "@/services/dose-service";
 import { todayTimelineService } from "@/services/today-timeline-service";
-import { buildDoseTimestamp, TimelineDose } from "@/shared/utils/dose-timeline";
+import { buildDoseTimestamp } from "@/shared/utils/dose-timeline";
+import { useHistoryStore } from "@/stores/history-store";
+import { useTimelineStore } from "@/stores/timeline-store";
 import { triggerLightHaptic } from "@/utils/haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SkeuoTheme } from "../../constants/theme";
-import { DoseHistory, getDoseHistory } from "../../utils/storage";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const doseHistory = useHistoryStore((state) => state.records);
+  const loadHistory = useHistoryStore((state) => state.loadHistory);
+  const timelineItems = useTimelineStore((state) => state.items);
+  const selectedTotalScheduled = useTimelineStore((state) => state.totalScheduled);
+  const selectedOverdueCount = useTimelineStore((state) => state.overdueCount);
+  const loadForDate = useTimelineStore((state) => state.loadForDate);
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [doseHistory, setDoseHistory] = useState<DoseHistory[]>([]);
-  const [timelineItems, setTimelineItems] = useState<TimelineDose[]>([]);
-  const [selectedTotalScheduled, setSelectedTotalScheduled] = useState(0);
-  const [selectedResolvedCount, setSelectedResolvedCount] = useState(0);
-  const [selectedOverdueCount, setSelectedOverdueCount] = useState(0);
   const [snackbarMessage, setSnackbarMessage] = useState("");
   const [snackbarVisible, setSnackbarVisible] = useState(false);
+
+  const selectedResolvedCount = timelineItems.filter(
+    (item) => Boolean(item.scheduledTime) && item.isResolved,
+  ).length;
 
   const showFeedback = useCallback((message: string) => {
     setSnackbarMessage(message);
@@ -47,30 +53,22 @@ export default function CalendarScreen() {
 
   const loadCalendarHistory = useCallback(async () => {
     try {
-      const history = await getDoseHistory();
-      setDoseHistory(history);
+      await loadHistory();
     } catch (error) {
       console.error("Error loading calendar data:", error);
     }
-  }, []);
+  }, [loadHistory]);
 
   const loadSelectedDateTimeline = useCallback(async (date: Date) => {
     try {
-      const timeline = await todayTimelineService.getForDate(date);
-      setTimelineItems(timeline.items);
-      setSelectedTotalScheduled(timeline.totalScheduled);
-      setSelectedResolvedCount(
-        timeline.items.filter(
-          (item) => Boolean(item.scheduledTime) && item.isResolved,
-        ).length,
-      );
-      setSelectedOverdueCount(timeline.overdueCount);
+      await loadForDate(date);
     } catch (error) {
       console.error("Error loading selected date timeline:", error);
     }
-  }, []);
+  }, [loadForDate]);
 
-  const confirmSkipDose = (
+  const confirmSkipDose = useCallback(
+    (
     medicationName: string,
     onConfirm: () => Promise<void>,
     scheduledTime?: string,
@@ -86,7 +84,9 @@ export default function CalendarScreen() {
         },
       },
     ]);
-  };
+    },
+    [],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -94,10 +94,6 @@ export default function CalendarScreen() {
       loadSelectedDateTimeline(selectedDate);
     }, [loadCalendarHistory, loadSelectedDateTimeline, selectedDate]),
   );
-
-  useEffect(() => {
-    loadSelectedDateTimeline(selectedDate);
-  }, [loadSelectedDateTimeline, selectedDate]);
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -109,13 +105,23 @@ export default function CalendarScreen() {
 
   const { days, firstDay } = getDaysInMonth(selectedDate);
 
-  const renderCalendar = () => {
+  const calendarRows = useMemo(() => {
     const calendar: React.ReactElement[] = [];
     let week: React.ReactElement[] = [];
 
     // Add empty cells for days before the first day of the month
-    for (let i = 0; i < firstDay; i++) {
-      week.push(<View key={`empty-${i}`} style={styles.calendarDay} />);
+    for (let offset = firstDay; offset > 0; offset--) {
+      const prevDate = new Date(
+        selectedDate.getFullYear(),
+        selectedDate.getMonth(),
+        1 - offset,
+      );
+      week.push(
+        <View
+          key={`empty-start-${prevDate.toISOString().slice(0, 10)}`}
+          style={styles.calendarDay}
+        />,
+      );
     }
 
     // Add days of the month
@@ -159,15 +165,26 @@ export default function CalendarScreen() {
       if ((firstDay + day) % 7 === 0 || day === days) {
         if (day === days && week.length < 7) {
           const trailingEmpty = 7 - week.length;
-          for (let i = 0; i < trailingEmpty; i++) {
+          for (let trailingDay = 1; trailingDay <= trailingEmpty; trailingDay++) {
+            const nextDate = new Date(
+              selectedDate.getFullYear(),
+              selectedDate.getMonth(),
+              day + trailingDay,
+            );
             week.push(
-              <View key={`empty-end-${day}-${i}`} style={styles.calendarDay} />,
+              <View
+                key={`empty-end-${nextDate.toISOString().slice(0, 10)}`}
+                style={styles.calendarDay}
+              />,
             );
           }
         }
 
         calendar.push(
-          <View key={day} style={styles.calendarWeek}>
+          <View
+            key={`week-${selectedDate.getFullYear()}-${selectedDate.getMonth()}-${day}`}
+            style={styles.calendarWeek}
+          >
             {week}
           </View>,
         );
@@ -176,12 +193,12 @@ export default function CalendarScreen() {
     }
 
     return calendar;
-  };
+  }, [days, doseHistory, firstDay, selectedDate]);
 
   const groupedMedications =
     todayTimelineService.groupByMedication(timelineItems);
 
-  const renderMedicationsForDate = () => {
+  const medicationRows = useMemo(() => {
     return groupedMedications.map(({ medication, items }) => {
       const scheduledTimes = items.map((item) => item.timeLabel);
       const takenCount = items.filter((item) => item.taken).length;
@@ -311,7 +328,14 @@ export default function CalendarScreen() {
         </View>
       );
     });
-  };
+  }, [
+    confirmSkipDose,
+    groupedMedications,
+    loadCalendarHistory,
+    loadSelectedDateTimeline,
+    selectedDate,
+    showFeedback,
+  ]);
 
   return (
     <View style={styles.container}>
@@ -398,7 +422,7 @@ export default function CalendarScreen() {
             ))}
           </View>
 
-          {renderCalendar()}
+          {calendarRows}
         </View>
 
         <View style={styles.scheduleContainer}>
@@ -460,7 +484,7 @@ export default function CalendarScreen() {
             </View>
           ) : (
             <ScrollView showsVerticalScrollIndicator={false}>
-              {renderMedicationsForDate()}
+              {medicationRows}
             </ScrollView>
           )}
         </View>
@@ -517,11 +541,7 @@ const styles = StyleSheet.create({
     borderColor: SkeuoTheme.colors.border,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#5f807f",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    boxShadow: "0px 2px 6px rgba(95, 128, 127, 0.18)",
   },
   headerTitle: {
     fontSize: 32,
@@ -535,11 +555,7 @@ const styles = StyleSheet.create({
     padding: 15,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    shadowColor: "#5f807f",
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 2,
+    boxShadow: "4px 4px 10px rgba(95, 128, 127, 0.2)",
   },
   monthHeader: {
     flexDirection: "row",
@@ -586,11 +602,7 @@ const styles = StyleSheet.create({
     backgroundColor: SkeuoTheme.colors.accent,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.accentDark,
-    shadowColor: SkeuoTheme.colors.accentDark,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 3,
+    boxShadow: "0px 2px 6px rgba(15, 143, 174, 0.28)",
   },
   todayText: {
     color: SkeuoTheme.colors.accentDark,
@@ -617,11 +629,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
-    shadowColor: "#5f807f",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    boxShadow: "0px -2px 8px rgba(95, 128, 127, 0.08)",
   },
   scheduleTitle: {
     fontSize: 20,
@@ -673,11 +681,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
-    shadowColor: "#5f807f",
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 2,
+    boxShadow: "4px 4px 10px rgba(95, 128, 127, 0.2)",
   },
   medicationColor: {
     width: 12,

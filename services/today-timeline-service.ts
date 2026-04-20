@@ -1,13 +1,13 @@
+import { bootstrapDatabase } from "@/database";
+import {
+    doseHistoryRepository,
+    medicationRepository,
+} from "@/database/repositories";
 import {
     buildTimelineForDate,
     TimelineDose,
 } from "@/shared/utils/dose-timeline";
-import {
-    DoseHistory,
-    getDoseHistory,
-    getMedications,
-    getTodaysDoses,
-} from "@/utils/storage";
+import type { DoseHistory } from "@/utils/storage";
 
 export interface TimelineViewModel {
   items: TimelineDose[];
@@ -30,7 +30,11 @@ export interface NotificationTimelineViewModel {
 }
 
 function timeToDate(baseDate: Date, time: string): Date {
-  const [hours, minutes] = time.split(":").map(Number);
+  const [hourText = "0", minuteText = "0"] = time.split(":");
+  const parsedHours = Number(hourText);
+  const parsedMinutes = Number(minuteText);
+  const hours = Number.isFinite(parsedHours) ? parsedHours : 0;
+  const minutes = Number.isFinite(parsedMinutes) ? parsedMinutes : 0;
   const date = new Date(baseDate);
   date.setHours(hours, minutes, 0, 0);
   return date;
@@ -69,10 +73,16 @@ function buildViewModel(
 }
 
 class TodayTimelineService {
+  private async ensureReady(): Promise<void> {
+    await bootstrapDatabase();
+  }
+
   async getForToday(): Promise<TimelineViewModel> {
+    await this.ensureReady();
+
     const [medications, todaysDoses] = await Promise.all([
-      getMedications(),
-      getTodaysDoses(),
+      medicationRepository.findAll(),
+      doseHistoryRepository.listToday(),
     ]);
 
     const timeline = buildTimelineForDate(medications, todaysDoses, new Date());
@@ -87,9 +97,11 @@ class TodayTimelineService {
   }
 
   async getForDate(date: Date): Promise<TimelineViewModel> {
+    await this.ensureReady();
+
     const [medications, allDoses] = await Promise.all([
-      getMedications(),
-      getDoseHistory(),
+      medicationRepository.findAll(),
+      doseHistoryRepository.listAll(),
     ]);
 
     const timeline = buildTimelineForDate(

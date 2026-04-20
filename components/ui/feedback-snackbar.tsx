@@ -1,6 +1,6 @@
 import { SkeuoTheme } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
 
 type SnackbarType = "success" | "info";
@@ -20,8 +20,8 @@ export function FeedbackSnackbar({
   onHide,
   duration = 1800,
 }: FeedbackSnackbarProps) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(32)).current;
+  const [opacity] = useState(() => new Animated.Value(0));
+  const [translateY] = useState(() => new Animated.Value(32));
 
   useEffect(() => {
     if (!visible) {
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     bottom: 28,
-    zIndex: 100,
+    zIndex: 30,
   },
   snackbar: {
     flexDirection: "row",

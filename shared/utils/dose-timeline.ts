@@ -53,7 +53,11 @@ function getDoseStatusOnDate(
 }
 
 function timeToDate(baseDate: Date, time: string): Date {
-  const [hours, minutes] = time.split(":").map(Number);
+  const [hourText = "0", minuteText = "0"] = time.split(":");
+  const parsedHours = Number(hourText);
+  const parsedMinutes = Number(minuteText);
+  const hours = Number.isFinite(parsedHours) ? parsedHours : 0;
+  const minutes = Number.isFinite(parsedMinutes) ? parsedMinutes : 0;
   const date = new Date(baseDate);
   date.setHours(hours, minutes, 0, 0);
   return date;
@@ -63,7 +67,11 @@ export function buildDoseTimestamp(date: Date, scheduledTime?: string): string {
   const value = new Date(date);
 
   if (scheduledTime) {
-    const [hours, minutes] = scheduledTime.split(":").map(Number);
+    const [hourText = "0", minuteText = "0"] = scheduledTime.split(":");
+    const parsedHours = Number(hourText);
+    const parsedMinutes = Number(minuteText);
+    const hours = Number.isFinite(parsedHours) ? parsedHours : 0;
+    const minutes = Number.isFinite(parsedMinutes) ? parsedMinutes : 0;
     value.setHours(hours, minutes, 0, 0);
     return value.toISOString();
   }

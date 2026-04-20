@@ -1,13 +1,13 @@
-import { runStorageMigrations } from "@/utils/storage";
+import { bootstrapDatabase } from "@/database";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 
 export default function Layout() {
   useEffect(() => {
-    // Run migrations asynchronously without blocking app startup
-    runStorageMigrations().catch((error) => {
-      console.error("Failed to run storage migrations:", error);
+    // Initialize SQLite and migrate legacy AsyncStorage data in the background.
+    bootstrapDatabase().catch((error) => {
+      console.error("Failed to bootstrap database:", error);
     });
   }, []);
 

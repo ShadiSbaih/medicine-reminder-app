@@ -1,30 +1,45 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Device from "expo-device";
 import { LinearGradient } from "expo-linear-gradient";
 import * as LocalAuthentication from "expo-local-authentication";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    Animated,
-    Dimensions,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import { SkeuoTheme } from "../../constants/theme";
-
-const { width } = Dimensions.get("window");
 
 export default function AuthScreen() {
   const router = useRouter();
-  const brandFadeAnim = useState(new Animated.Value(0))[0];
-  const brandScaleAnim = useState(new Animated.Value(0.8))[0];
-  const cardFadeAnim = useState(new Animated.Value(0))[0];
-  const cardTranslateAnim = useState(new Animated.Value(16))[0];
+  const brandFade = useSharedValue(0);
+  const brandScale = useSharedValue(0.8);
+  const cardFade = useSharedValue(0);
+  const cardTranslate = useSharedValue(16);
 
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasBiometrics, setHasBiometrics] = useState(false);
+  const showDeveloperContinue = __DEV__ || !Device.isDevice;
+
+  const brandAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: brandFade.value,
+    transform: [{ scale: brandScale.value }],
+  }));
+
+  const cardAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: cardFade.value,
+    transform: [{ translateY: cardTranslate.value }],
+  }));
 
   const checkBiometrics = async () => {
     const hasHardware = await LocalAuthentication.hasHardwareAsync();
@@ -33,10 +48,10 @@ export default function AuthScreen() {
   };
 
   const authenticate = async () => {
-    try {
-      setIsAuthenticating(true);
-      setError(null);
+    setIsAuthenticating(true);
+    setError(null);
 
+    try {
       // Check if device has biometric hardware
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const hasBiometrics = await LocalAuthentication.isEnrolledAsync();
@@ -52,47 +67,28 @@ export default function AuthScreen() {
       });
 
       if (auth.success) {
+        setIsAuthenticating(false);
         router.replace("/home");
+        return;
       } else {
         setError("Authentication failed. Please try again.");
       }
     } catch (err) {
       setError("An error occurred. Please try again.");
       console.error(err);
-    } finally {
-      setIsAuthenticating(false);
     }
+
+    setIsAuthenticating(false);
   };
 
   useEffect(() => {
     checkBiometrics();
 
-    Animated.parallel([
-      Animated.timing(brandFadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.spring(brandScaleAnim, {
-        toValue: 1,
-        tension: 40,
-        friction: 7,
-        useNativeDriver: true,
-      }),
-      Animated.timing(cardFadeAnim, {
-        toValue: 1,
-        duration: 500,
-        delay: 180,
-        useNativeDriver: true,
-      }),
-      Animated.timing(cardTranslateAnim, {
-        toValue: 0,
-        duration: 500,
-        delay: 180,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [brandFadeAnim, brandScaleAnim, cardFadeAnim, cardTranslateAnim]);
+    brandFade.value = withTiming(1, { duration: 600 });
+    brandScale.value = withSpring(1, { damping: 12, stiffness: 180 });
+    cardFade.value = withDelay(180, withTiming(1, { duration: 500 }));
+    cardTranslate.value = withDelay(180, withTiming(0, { duration: 500 }));
+  }, [brandFade, brandScale, cardFade, cardTranslate]);
 
   return (
     <LinearGradient
@@ -103,15 +99,7 @@ export default function AuthScreen() {
       <View style={styles.bottomShape} />
       <View style={styles.leftOrb} />
       <View style={styles.content}>
-        <Animated.View
-          style={[
-            styles.brandContainer,
-            {
-              opacity: brandFadeAnim,
-              transform: [{ scale: brandScaleAnim }],
-            },
-          ]}
-        >
+        <Animated.View style={[styles.brandContainer, brandAnimatedStyle]}>
           <View style={styles.iconContainer}>
             <Ionicons
               name="medical"
@@ -124,15 +112,7 @@ export default function AuthScreen() {
           <Text style={styles.subtitle}>Your Medication Companion</Text>
         </Animated.View>
 
-        <Animated.View
-          style={[
-            styles.card,
-            {
-              opacity: cardFadeAnim,
-              transform: [{ translateY: cardTranslateAnim }],
-            },
-          ]}
-        >
+        <Animated.View style={[styles.card, cardAnimatedStyle]}>
           <View style={styles.kickerRow}>
             <Ionicons
               name="shield-checkmark"
@@ -167,13 +147,13 @@ export default function AuthScreen() {
                   : "Enter PIN"}
             </Text>
           </TouchableOpacity>
-          {__DEV__ && (
+          {showDeveloperContinue && (
             <TouchableOpacity
               style={{ marginTop: 20 }}
               onPress={() => router.push("/home")}
             >
               <Text style={{ marginTop: 12, color: SkeuoTheme.colors.accent }}>
-                Enter as Developer
+                continue as developr
               </Text>
             </TouchableOpacity>
           )}
@@ -283,7 +263,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.92)",
     borderRadius: 30,
     padding: 22,
-    width: width - 40,
+    width: "100%",
     alignItems: "flex-start",
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
@@ -356,7 +336,7 @@ const styles = StyleSheet.create({
   },
   metaRow: {
     marginTop: 12,
-    width: width - 40,
+    width: "100%",
     gap: 8,
   },
   metaChip: {

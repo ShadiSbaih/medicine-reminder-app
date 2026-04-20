@@ -5,43 +5,41 @@ import {
   getDoseSuccessMessage,
   getSkipConfirmationCopy,
 } from "@/constants/feedback-copy";
+import { SkeuoTheme } from "@/constants/theme";
 import { doseService } from "@/services/dose-service";
+import { notificationReadService } from "@/services/notification-read-service";
 import { todayTimelineService } from "@/services/today-timeline-service";
 import { TimelineDose } from "@/shared/utils/dose-timeline";
+import { useMedicationStore } from "@/stores/medication-store";
+import { useTimelineStore } from "@/stores/timeline-store";
 import { triggerLightHaptic } from "@/utils/haptics";
+import {
+  registerForPushNotificationsAsync,
+  updateMedicationReminders,
+} from "@/utils/notifications";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Link } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
-  Animated,
   AppState,
-  Dimensions,
   Modal,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
+import Animated, {
+  useAnimatedProps,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
-import { SkeuoTheme } from "../../constants/theme";
-import {
-  registerForPushNotificationsAsync,
-  updateMedicationReminders,
-} from "../../utils/notifications";
-import {
-  getMedications,
-  getReadNotificationIds,
-  markNotificationAsRead,
-  markNotificationsAsRead,
-  Medication,
-} from "../../utils/storage";
-
-const { width } = Dimensions.get("window");
 
 // Create animated circle component
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -94,24 +92,20 @@ function CircularProgress({
   totalDoses,
   completedDoses,
 }: CircularProgressProps) {
-  const animatedValue = useRef(new Animated.Value(0)).current;
+  const progressValue = useSharedValue(0);
+  const { width } = useWindowDimensions();
   const size = width * 0.55;
   const strokeWidth = 15;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
 
   useEffect(() => {
-    Animated.timing(animatedValue, {
-      toValue: progress,
-      duration: 1500,
-      useNativeDriver: true,
-    }).start();
-  }, [progress, animatedValue]);
+    progressValue.value = withTiming(progress, { duration: 1500 });
+  }, [progress, progressValue]);
 
-  const strokeDashoffset = animatedValue.interpolate({
-    inputRange: [0, 1],
-    outputRange: [circumference, 0],
-  });
+  const animatedProps = useAnimatedProps(() => ({
+    strokeDashoffset: circumference * (1 - progressValue.value),
+  }));
 
   return (
     <View style={styles.progressContainer}>
@@ -140,7 +134,7 @@ function CircularProgress({
           strokeWidth={strokeWidth}
           fill="none"
           strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
+          animatedProps={animatedProps}
           strokeLinecap="round"
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />
@@ -151,12 +145,14 @@ function CircularProgress({
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const loadMedications = useMedicationStore((state) => state.loadMedications);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [scheduledDoses, setScheduledDoses] = useState<ScheduledDose[]>([]);
-  const [completedDoses, setCompletedDoses] = useState(0);
-  const [totalScheduledDoses, setTotalScheduledDoses] = useState(0);
-  const [overdueCount, setOverdueCount] = useState(0);
-  const [nextDueDose, setNextDueDose] = useState<ScheduledDose | undefined>();
+  const scheduledDoses = useTimelineStore((state) => state.items);
+  const completedDoses = useTimelineStore((state) => state.completedScheduled);
+  const totalScheduledDoses = useTimelineStore((state) => state.totalScheduled);
+  const overdueCount = useTimelineStore((state) => state.overdueCount);
+  const nextDueDose = useTimelineStore((state) => state.nextDueDose);
+  const loadTodayTimeline = useTimelineStore((state) => state.loadToday);
   const [readNotificationIds, setReadNotificationIds] = useState<string[]>([]);
   const [snackbarMessage, setSnackbarMessage] = useState("");
   const [snackbarVisible, setSnackbarVisible] = useState(false);
@@ -168,16 +164,11 @@ export default function HomeScreen() {
 
   const loadTimeline = useCallback(async () => {
     try {
-      const timeline = await todayTimelineService.getForToday();
-      setScheduledDoses(timeline.items);
-      setCompletedDoses(timeline.completedScheduled);
-      setTotalScheduledDoses(timeline.totalScheduled);
-      setOverdueCount(timeline.overdueCount);
-      setNextDueDose(timeline.nextDueDose);
+      await loadTodayTimeline();
     } catch (error) {
       console.error("Error loading medications:", error);
     }
-  }, []);
+  }, [loadTodayTimeline]);
 
   const setupNotifications = useCallback(async () => {
     try {
@@ -188,7 +179,8 @@ export default function HomeScreen() {
       }
 
       // Schedule reminders for all medications
-      const medications = await getMedications();
+      await loadMedications();
+      const medications = useMedicationStore.getState().medications;
       for (const medication of medications) {
         if (medication.reminderEnabled || medication.refillReminder) {
           await updateMedicationReminders(medication);
@@ -197,7 +189,7 @@ export default function HomeScreen() {
     } catch (error) {
       console.error("Error setting up notifications:", error);
     }
-  }, []);
+  }, [loadMedications]);
 
   // Use useEffect for initial load
   useEffect(() => {
@@ -219,7 +211,7 @@ export default function HomeScreen() {
   const todayKey = new Date().toISOString().slice(0, 10);
 
   const loadReadNotifications = useCallback(async () => {
-    const readIds = await getReadNotificationIds(todayKey);
+    const readIds = await notificationReadService.list(todayKey);
     setReadNotificationIds(readIds);
   }, [todayKey]);
 
@@ -237,7 +229,7 @@ export default function HomeScreen() {
   );
 
   const handleTakeDose = async (
-    medication: Medication,
+    medication: TimelineDose["medication"],
     scheduledTime?: string,
   ) => {
     try {
@@ -257,7 +249,7 @@ export default function HomeScreen() {
   };
 
   const handleSkipDose = async (
-    medication: Medication,
+    medication: TimelineDose["medication"],
     scheduledTime?: string,
   ) => {
     try {
@@ -276,7 +268,10 @@ export default function HomeScreen() {
     }
   };
 
-  const confirmSkipDose = (medication: Medication, scheduledTime?: string) => {
+  const confirmSkipDose = (
+    medication: TimelineDose["medication"],
+    scheduledTime?: string,
+  ) => {
     const copy = getSkipConfirmationCopy(medication.name, scheduledTime);
     Alert.alert(copy.title, copy.message, [
       { text: copy.cancelLabel, style: "cancel" },
@@ -302,7 +297,7 @@ export default function HomeScreen() {
 
   const handleMarkNotificationRead = async (notificationId: string) => {
     if (readNotificationIds.includes(notificationId)) return;
-    await markNotificationAsRead(todayKey, notificationId);
+    await notificationReadService.markAsRead(todayKey, notificationId);
     setReadNotificationIds((prev) => [...prev, notificationId]);
   };
 
@@ -312,7 +307,7 @@ export default function HomeScreen() {
       .map((item) => item.id);
     if (unreadIds.length === 0) return;
 
-    await markNotificationsAsRead(todayKey, unreadIds);
+    await notificationReadService.markManyAsRead(todayKey, unreadIds);
     setReadNotificationIds((prev) =>
       Array.from(new Set([...prev, ...unreadIds])),
     );
@@ -489,7 +484,7 @@ export default function HomeScreen() {
                       style={styles.actionGradient}
                     >
                       <View style={styles.actionContent}>
-                        <View style={[styles.actionIcon]}>
+                        <View style={styles.actionIcon}>
                           <Ionicons
                             name={action.icon}
                             size={28}
@@ -885,7 +880,7 @@ const styles = StyleSheet.create({
     backgroundColor: SkeuoTheme.colors.dangerSurface,
     borderColor: SkeuoTheme.colors.dangerBorder,
     borderWidth: 1,
-    borderRadius: SkeuoTheme.radius.pill,
+    borderRadius: SkeuoTheme.radius.full,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
@@ -896,7 +891,7 @@ const styles = StyleSheet.create({
   },
   onTrackBadge: {
     backgroundColor: SkeuoTheme.colors.successSurface,
-    borderRadius: SkeuoTheme.radius.pill,
+    borderRadius: SkeuoTheme.radius.full,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
@@ -964,7 +959,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   actionButton: {
-    width: (width - 48) / 2,
+    flexBasis: "48%",
+    maxWidth: "48%",
     height: 116,
     borderRadius: 22,
     overflow: "hidden",
@@ -1014,7 +1010,7 @@ const styles = StyleSheet.create({
   seeAllButtonWrap: {
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: SkeuoTheme.radius.pill,
+    borderRadius: SkeuoTheme.radius.full,
     backgroundColor: SkeuoTheme.colors.neutralSurface,
     borderWidth: 1,
     borderColor: SkeuoTheme.colors.border,
@@ -1113,7 +1109,7 @@ const styles = StyleSheet.create({
     backgroundColor: SkeuoTheme.colors.neutralSurface,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: SkeuoTheme.radius.pill,
+    borderRadius: SkeuoTheme.radius.full,
   },
   skippedText: {
     color: SkeuoTheme.colors.textSecondary,
@@ -1189,7 +1185,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: SkeuoTheme.colors.overlayDark,
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
     justifyContent: "flex-end",
   },
   modalContent: {
@@ -1224,7 +1220,7 @@ const styles = StyleSheet.create({
   },
   markAllButton: {
     backgroundColor: SkeuoTheme.colors.accentSoft,
-    borderRadius: SkeuoTheme.radius.pill,
+    borderRadius: SkeuoTheme.radius.full,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
@@ -1357,7 +1353,7 @@ const styles = StyleSheet.create({
     backgroundColor: SkeuoTheme.colors.neutralSurface,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: SkeuoTheme.radius.pill,
+    borderRadius: SkeuoTheme.radius.full,
   },
   creditText: {
     color: SkeuoTheme.colors.accentDark,
